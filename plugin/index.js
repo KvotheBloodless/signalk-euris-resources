@@ -27,6 +27,8 @@ const lockUtils = require('./lock_utilities')
 const loadingCache = require('@inventivetalent/loading-cache')
 const time = require('@inventivetalent/time')
 
+const eurisCachesDurationMinutes = 60
+
 module.exports = function (app) {
     const plugin = {
         id: 'signalk-euris-resources',
@@ -34,7 +36,7 @@ module.exports = function (app) {
         description: 'Provides data from the EuRIS API as SignalK resources'
     }
 
-    const lockDetailsCache = loadingCache.Caches.builder().expireAfterAccess(time.Time.minutes(60)).buildAsync(
+    const lockDetailsCache = loadingCache.Caches.builder().expireAfterAccess(time.Time.minutes(eurisCachesDurationMinutes)).buildAsync(
         lockId => {
             app.debug(`Cache miss for lock ${lockId}`)
             return client.lockDetails(lockId)

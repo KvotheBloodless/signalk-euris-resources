@@ -28,7 +28,17 @@ const helpers = require('helpers-for-handlebars')
 helpers.math()
 helpers.array()
 
-const lockDescriptionTemplate = Handlebars.compile(`
+Handlebars.registerHelper('join', function( array, sep, options) {
+    return array.map(function(item) {
+        return options.fn(item)
+    }).join(sep)
+})
+
+const simpleLockDescriptionTemplate = Handlebars.compile(
+'{{length sublocks}} Chamber(s) - Rise {{#join sublocks ", "}}{{divide clHeight 100}}m{{/join}} - {{compactLock2.contactPhone}}'
+)
+
+const richLockDescriptionTemplate = Handlebars.compile(`
 <h3>{{compactLock2.objectName}}</h3>
 <sup>{{routeName}} - {{compactLock2.waterwayName}} - {{facility.operator}} - {{country}}</sup><br/>
 <sup>{{length sublocks}} Chamber(s)</sup><br/>
@@ -43,6 +53,18 @@ const lockDescriptionTemplate = Handlebars.compile(`
 `)
 
 module.exports = {
+    toNoteSetFeature: function (coordinates, details) {
+        return {
+            geometry: {
+                type: 'Point',
+                coordinates
+            },
+            properties: {
+                name: details.compactLock2.objectName,
+                description: richLockDescriptionTemplate(details)
+            }
+        }
+    },
     toResourceSetFeature: function (coordinates, details) {
         return {
             geometry: {
@@ -51,7 +73,7 @@ module.exports = {
             },
             properties: {
                 name: details.compactLock2.objectName,
-                description: lockDescriptionTemplate(details)
+                description: simpleLockDescriptionTemplate(details)
             }
         }
     }
