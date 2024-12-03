@@ -29,67 +29,67 @@ const spatialRef = 4326 // WGS 84
 const userAgent = 'Signal K EuRIS Plugin'
 
 axios.interceptors.request.use(request => {
-    //console.log('Starting Request', JSON.stringify(request, null, 2))
-    return request
+  // console.log('Starting Request', JSON.stringify(request, null, 2))
+  return request
 })
 
 module.exports = {
-    listLocks: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/locks/0/query`
-    
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                'Accept': 'application/json'
-            },
-            params: {
-                f: 'json',
-                returnGeometry: true,
-                outFields: 'LOCODE',
-                spatialRel: 'esriSpatialRelIntersects',
-                geometryType: 'esriGeometryEnvelope',
-                inSR: spatialRef,
-                outSR: spatialRef,
-                geometry: JSON.stringify({
-                    xmin: x1,
-                    ymin: y1,
-                    xmax: x2, 
-                    ymax: y2,
-                    spatialReference: {
-                        wkid: spatialRef
-                    }
-                })
-            }
-        })
-        .then(response => {
-            return response.data.features.map((feature) => {
-                return {
-                    id: feature.attributes.LOCODE,
-                    point: [feature.geometry.x, feature.geometry.y]
-                }
-            })
-        })
-        .catch(error => {
-            console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        })
-    },
-    lockDetails: function (id) {
-        const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
+  listLocks: function (x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/locks/0/query`
 
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                'Accept': 'application/json'
-            },
-            params: {
-                isrs: id
-            }
+    return axios.get(url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        returnGeometry: true,
+        outFields: 'LOCODE',
+        spatialRel: 'esriSpatialRelIntersects',
+        geometryType: 'esriGeometryEnvelope',
+        inSR: spatialRef,
+        outSR: spatialRef,
+        geometry: JSON.stringify({
+          xmin: x1,
+          ymin: y1,
+          xmax: x2,
+          ymax: y2,
+          spatialReference: {
+            wkid: spatialRef
+          }
         })
-        .then(response => {
-            return response.data
+      }
+    })
+      .then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            id: feature.attributes.LOCODE,
+            point: [feature.geometry.x, feature.geometry.y]
+          }
         })
-        .catch(error => {
-            console.log(`ERROR fetching lock details ${id} - ${error}`)
-        })
-    }
+      })
+      .catch(error => {
+        console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+      })
+  },
+  lockDetails: function (id) {
+    const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
+
+    return axios.get(url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id
+      }
+    })
+      .then(response => {
+        return response.data
+      })
+      .catch(error => {
+        console.log(`ERROR fetching lock details ${id} - ${error}`)
+      })
+  }
 }

@@ -43,18 +43,16 @@ const lockDescriptionTemplate = Handlebars.compile(`
 `)
 
 module.exports = {
-    toResourceSetFeature: function (coordinates, details) {
-        return {
-            geometry: {
-                type: 'Point',
-                coordinates: coordinates
-            },
-            properties: {
-                name: details.compactLock2.objectName,
-                description: lockDescriptionTemplate(details)
-            }
-        }
+  toResourceSetFeature: function (coordinates, details) {
+    return {
+      geometry: {
+        type: 'Point',
+        coordinates
+      },
+      properties: {
+        name: details.compactLock2.objectName,
+        description: lockDescriptionTemplate(details)
+      }
     }
+  }
 }
-
-
