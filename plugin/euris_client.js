@@ -45,7 +45,7 @@ module.exports = {
             params: {
                 f: 'json',
                 returnGeometry: true,
-                outFields: 'LOCODE',
+                outFields: '*',
                 spatialRel: 'esriSpatialRelIntersects',
                 geometryType: 'esriGeometryEnvelope',
                 inSR: spatialRef,

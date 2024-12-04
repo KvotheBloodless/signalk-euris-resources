@@ -28,40 +28,48 @@ const helpers = require('helpers-for-handlebars')
 helpers.math()
 helpers.array()
 
-Handlebars.registerHelper('join', function( array, sep, options) {
-    return array.map(function(item) {
+Handlebars.registerHelper('join', function (array, sep, options) {
+    return array.map(function (item) {
         return options.fn(item)
     }).join(sep)
 })
 
 const simpleLockDescriptionTemplate = Handlebars.compile(
-'{{length sublocks}} Chamber(s) - Rise {{#join sublocks ", "}}{{divide clHeight 100}}m{{/join}} - {{compactLock2.contactPhone}}'
+    '{{length sublocks}} Basin(s) - {{#join sublocks "; "}}Δ {{divide clHeight 100}}m{{/join}} - {{compactLock2.contactPhone}}'
 )
 
-const richLockDescriptionTemplate = Handlebars.compile(`
-<h3>{{compactLock2.objectName}}</h3>
+const richLockDescriptionTemplate = Handlebars.compile(
+    `<h3>{{compactLock2.objectName}}</h3>
 <sup>{{routeName}} - {{compactLock2.waterwayName}} - {{facility.operator}} - {{country}}</sup><br/>
-<sup>{{length sublocks}} Chamber(s)</sup><br/>
+<sup>{{length sublocks}} Basin(s)</sup><br/>
 <h4>Contact</h4>
 <p><label>Phone:</label><span>{{compactLock2.contactPhone}}</span></p>
 {{#each sublocks}}
     <h4>Chamber {{@index}} Characteristics</h4>
-    <p><label>Rise: </label><span>{{divide clHeight 100}}m</span></p>
-    <p><label>Dimensions: </label><span>{{divide mlengthcm 100}}m by {{divide mwidthcm 100}}m</span></p>
+    <p><label>Δ: </label><span>{{divide clHeight 100}}m</span></p>
+    <p><label>L x W: </label><span>{{divide mlengthcm 100}}m by {{divide mwidthcm 100}}m</span></p>
 {{/each}}
-<br/>
-`)
+<br/>`
+)
 
 module.exports = {
-    toNoteSetFeature: function (coordinates, details) {
+    toNoteFeature: function (coordinates, details) {
         return {
-            geometry: {
-                type: 'Point',
-                coordinates
+            timetamp: new Date().toISOString(),
+            name: details.compactLock2.objectName,
+            description: richLockDescriptionTemplate(details),
+            position: {
+                longitude: coordinates[0],
+                latitude: coordinates[1]
             },
+            position2: details.position2,
+            group: 'Lock',
+            url: `https://www.eurisportal.eu/visuris/api/Locks_v2/GetLock?isrs=${details.compactLock2.locode}`,
+            // For an unknown reason, using this parameter prevents the note from displaying in Freeboard
+            // href: `resources/notes/${details.compactLock2.locode}`,
+            mimeType: 'text/plain',
             properties: {
-                name: details.compactLock2.objectName,
-                description: richLockDescriptionTemplate(details)
+                readOnly: true
             }
         }
     },

@@ -24,6 +24,7 @@
 
 const client = require('./euris_client')
 const lockUtils = require('./lock_utilities')
+const positionUtils = require('./position_utilities')
 const loadingCache = require('@inventivetalent/loading-cache')
 const time = require('@inventivetalent/time')
 
@@ -44,7 +45,8 @@ module.exports = function (app) {
     )
 
     plugin.start = function (options) {
-        registerAsCustomResourcesProvider()
+        registerAsEurisResourcesProvider()
+        registerAsNoteResourcesProvider()
     }
 
     plugin.stop = function () {
@@ -56,7 +58,7 @@ module.exports = function (app) {
         }
     }
 
-    function registerAsCustomResourcesProvider () {
+    function registerAsEurisResourcesProvider () {
         try {
             app.registerResourceProvider({
                 type: 'EuRIS',
@@ -64,14 +66,14 @@ module.exports = function (app) {
                     listResources: (query) => {
                         app.debug(`Incoming request to list EuRIS resources - query: ${JSON.stringify(query)}`)
 
-                        const locksPromise = client.listLocks(4.658717516383808, 46.96024231761558, 5.0305327978160115, 46.705876676409396).then(ids => {
-                            return Promise.all(ids.map(lock => {
-                                return lockDetailsCache.get(lock.id).then(details => {
-                                    return lockUtils.toResourceSetFeature(lock.point, details)
+                        const locksPromise = client.listLocks(3.193813633335093, 43.33401037471581, 3.206870686219679, 43.32802576946635).then(ids => {
+                            return Promise.all(
+                                ids.map(lock => {
+                                    return lockDetailsCache.get(lock.id).then(details => {
+                                        return lockUtils.toResourceSetFeature(lock.point, details)
+                                    })
                                 })
-                            })).then((values) => {
-                                return values
-                            })
+                            )
                         })
 
                         return Promise.all([locksPromise]).then((values) => {
@@ -83,6 +85,60 @@ module.exports = function (app) {
                     getResource: (id, property) => {
                         app.debug(`Incoming request to get activecaptain resource - id: ${id}`)
                         throw (new Error('Not implemented!'))
+                    },
+                    setResource: (id, value) => {
+                        throw (new Error('Not implemented!'))
+                    },
+                    deleteResource: (id) => {
+                        throw (new Error('Not implemented!'))
+                    }
+                }
+            })
+        } catch (error) {
+            app.debug(`Cannot register as a resource provider ${error}`)
+        }
+    }
+
+    function registerAsNoteResourcesProvider () {
+        try {
+            app.registerResourceProvider({
+                type: 'notes',
+                methods: {
+                    listResources: (query) => {
+                        app.debug(`Incoming request to list note resources - query: ${JSON.stringify(query)}`)
+
+                        const bbox = positionUtils.positionToBbox(query.position, query.distance)
+
+                        const locksPromise = client.listLocks(bbox[0], bbox[1], bbox[2], bbox[3]).then(ids => {
+                            return Promise.all(
+                                ids.map(lock => {
+                                    return lockDetailsCache.get(lock.id).then(details => {
+                                        return lockUtils.toNoteFeature(lock.point, details)
+                                    }).then(resourceSet => {
+                                        resourceSet.id = lock.id
+                                        resourceSet.$source = plugin.id
+                                        return resourceSet
+                                    })
+                                })
+                            )
+                        })
+
+                        return Promise.all([locksPromise]).then(promises => {
+                            return promises.flat().reduce((map, obj) => {
+                                map[obj.id] = obj
+                                delete obj.id
+                                return map
+                            }, {})
+                        })
+                    },
+                    getResource: (id, property) => {
+                        app.debug(`Incoming request to get note ${id}`)
+                        return lockDetailsCache.get(id).then(details => {
+                            return lockUtils.toNoteFeature([0, 0], details)
+                        }).then(resourceSet => {
+                            resourceSet.$source = plugin.id
+                            return resourceSet
+                        })
                     },
                     setResource: (id, value) => {
                         throw (new Error('Not implemented!'))
