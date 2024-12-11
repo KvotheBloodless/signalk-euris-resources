@@ -35,21 +35,26 @@ Handlebars.registerHelper('join', function (array, sep, options) {
 })
 
 const simpleLockDescriptionTemplate = Handlebars.compile(
-    '{{length sublocks}} Basin(s) - {{#join sublocks "; "}}Δ {{divide clHeight 100}}m{{/join}} - {{compactLock2.contactPhone}}'
+'{{length sublocks}} Basin(s) - {{#join sublocks "; "}}Δ {{#if clHeight}}{{divide clHeight 100}}m{{/if}}{{/join}} - {{compactLock2.contactPhone}}'
 )
 
 const richLockDescriptionTemplate = Handlebars.compile(
-    `<h3>{{compactLock2.objectName}}</h3>
-<sup>{{routeName}} - {{compactLock2.waterwayName}} - {{facility.operator}} - {{country}}</sup><br/>
-<sup>{{length sublocks}} Basin(s)</sup><br/>
-<h4>Contact</h4>
-<p><label>Phone:</label><span>{{compactLock2.contactPhone}}</span></p>
+`
+<h3>{{compactLock2.objectName}}</h3>
+<div>
+{{length sublocks}} Basin(s)<br/>
 {{#each sublocks}}
-    <h4>Chamber {{@index}} Characteristics</h4>
-    <p><label>Δ: </label><span>{{divide clHeight 100}}m</span></p>
-    <p><label>L x W: </label><span>{{divide mlengthcm 100}}m by {{divide mwidthcm 100}}m</span></p>
+<p>
+{{#if clHeight}}<label>Δ: </label><span>{{divide clHeight 100}}m</span>{{/if}}
+{{#if mlengthcm}}<label>L: </label><span>{{divide mlengthcm 100}}m</span>{{/if}}
+{{#if mwidthcm}}<label>W: </label><span>{{divide mwidthcm 100}}m</span>{{/if}}
+</p>
 {{/each}}
-<br/>`
+</div>
+<h4>Contact</h4>
+<div>
+<p><label>Phone:</label><span>{{compactLock2.contactPhone}}</span></p>
+</div>`
 )
 
 module.exports = {
@@ -62,11 +67,8 @@ module.exports = {
                 longitude: coordinates[0],
                 latitude: coordinates[1]
             },
-            position2: details.position2,
-            group: 'Lock',
+            group: 'EuRIS_Lock',
             url: `https://www.eurisportal.eu/visuris/api/Locks_v2/GetLock?isrs=${details.compactLock2.locode}`,
-            // For an unknown reason, using this parameter prevents the note from displaying in Freeboard
-            // href: `resources/notes/${details.compactLock2.locode}`,
             mimeType: 'text/plain',
             properties: {
                 readOnly: true

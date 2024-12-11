@@ -35,7 +35,7 @@ axios.interceptors.request.use(request => {
 
 module.exports = {
     listLocks: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/locks/0/query`
+        const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
 
         return axios.get(url, {
             headers: {
@@ -45,7 +45,7 @@ module.exports = {
             params: {
                 f: 'json',
                 returnGeometry: true,
-                outFields: '*',
+                outFields: 'LOCODE',
                 spatialRel: 'esriSpatialRelIntersects',
                 geometryType: 'esriGeometryEnvelope',
                 inSR: spatialRef,
