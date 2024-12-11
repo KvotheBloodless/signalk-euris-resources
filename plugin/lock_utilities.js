@@ -35,11 +35,11 @@ Handlebars.registerHelper('join', function (array, sep, options) {
 })
 
 const simpleLockDescriptionTemplate = Handlebars.compile(
-'{{length sublocks}} Basin(s) - {{#join sublocks "; "}}Δ {{#if clHeight}}{{divide clHeight 100}}m{{/if}}{{/join}} - {{compactLock2.contactPhone}}'
+    '{{length sublocks}} Basin(s) - {{#join sublocks "; "}}Δ {{#if clHeight}}{{divide clHeight 100}}m{{/if}}{{/join}} - {{compactLock2.contactPhone}}'
 )
 
 const richLockDescriptionTemplate = Handlebars.compile(
-`
+    `
 <h3>{{compactLock2.objectName}}</h3>
 <div>
 {{length sublocks}} Basin(s)<br/>

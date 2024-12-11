@@ -80,7 +80,7 @@ module.exports = function (app) {
     }
 
     plugin.stop = function () {
-        for (const [type, struct] of map) {
+        for (const struct of map.values()) {
             struct.detailsCache.end()
         }
     }
@@ -109,7 +109,7 @@ module.exports = function (app) {
 
                         const promises = []
 
-                        for (const [type, struct] of map) {
+                        for (const struct of map.values()) {
                             // TODO: Position needs to be based on boat location or query (when available)
                             const promise = struct.listMethod(4.738073872791906, 46.73320999145508, 4.938073872791906, 46.93320999145508)
                                 .then(entities => {
@@ -135,12 +135,12 @@ module.exports = function (app) {
                         return Promise.all(promises)
                             .then((values) => {
                                 const resources = {}
-                                for (const [type, struct] of map) {
+                                for (const struct of map.values()) {
                                     resources[struct.id] = structuredClone(struct.resourceSetTemplate)
                                 }
 
                                 let index = 0
-                                for (const [type, struct] of map) {
+                                for (const struct of map.values()) {
                                     values[index++].forEach((entity) => resources[struct.id].values.features.push(entity))
                                 }
 
@@ -153,7 +153,7 @@ module.exports = function (app) {
                     getResource: (id, property) => {
                         app.debug(`Incoming request to get EuRIS resource - ID: ${id}`)
 
-                        for (const [type, struct] of map) {
+                        for (const struct of map.values()) {
                             if (struct.id === id) {
                                 // TODO: Position needs to be based on boat location or query (when available)
                                 return struct.listMethod(4.738073872791906, 46.73320999145508, 4.938073872791906, 46.93320999145508)
@@ -211,7 +211,7 @@ module.exports = function (app) {
 
                             const promises = []
 
-                            for (const [type, struct] of map) {
+                            for (const struct of map.values()) {
                                 const promise = struct.listMethod(bbox[0], bbox[1], bbox[2], bbox[3])
                                     .then(entities => {
                                         return Promise.all(
@@ -260,7 +260,7 @@ module.exports = function (app) {
                     getResource: (id, property) => {
                         app.debug(`Incoming request to get note ${id}`)
 
-                        for (const [type, struct] of map) {
+                        for (const struct of map.values()) {
                             if (struct.detailsCache.has(id)) {
                                 return struct.detailsCache.get(id).then(details => {
                                     return struct.noteFormatter([0, 0], details)
