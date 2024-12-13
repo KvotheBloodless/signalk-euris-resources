@@ -27,81 +27,42 @@ const helpers = require('helpers-for-handlebars')
 
 helpers.math()
 helpers.array()
-helpers.number()
+helpers.comparison()
 
-handlebars.registerHelper('deltas', function (arr, prop) {
-    return arr.map((heightString) => `${(parseInt(heightString) / 100).toFixed(1)}m`).join(prop)
-})
-
-handlebars.registerHelper('isoDateToTime', function (dateString) {
-    return new Date(dateString).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
-})
-
-const simpleLockDescriptionTemplate = handlebars.compile(
-    '{{length sublocks}} Basin(s) - Δ {{deltas (pluck sublocks "clHeight") "; "}} - {{compactLock2.contactPhone}}'
+const simpleDescriptionTemplate = handlebars.compile(
+    'H {{#if feature.height}}{{divide feature.height 100}}m{{else}}unknown{{/if}} * W {{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}unknown{{/if}}'
 )
 
-const richLockDescriptionTemplate = handlebars.compile(
-    `
-<hr/>
+const richDescriptionTemplate = handlebars.compile(
+`
+<nr/>
 <div>
-    <h4>📏 Dimensions</h4>
     <table>
         <tr>
-            <th>Basin</th>
-            <th>Δ</th>
-            <th>L</th>
+            <th>H</th>
             <th>W</th>
         </tr>
-    {{#eachIndex details.sublocks}}
         <tr>
-            <td>{{plus index 1}}</td>
-            <td>{{divide item.clHeight 100}}m</td>
-            <td>{{divide item.mlengthcm 100}}m</td>
-            <td>{{divide item.mwidthcm 100}}m</td>
+            <td>{{#if feature.height}}{{divide feature.height 100}}m{{else}}unknown{{/if}}</td>
+            <td>{{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}unknown{{/if}}</td>
         </th>
-    {{/eachIndex}}
     </table>
 </div>
-{{#if operatingTimes}}
-<hr/>
-<div>
-    <h4>Operating times today</h4>
-    {{#each operatingTimes}}
-        <p>
-            {{isoDateToTime this.dateStart}} ► 🕐 {{isoDateToTime this.dateEnd}} {{this.statusMessage}}<br/>
-            {{#eachIndex this.operationEventRemarks}}
-                Remark {{plus index 1}}: {{item.remark}}<br/>
-            {{/eachIndex}} 
-        </p>
-    {{/each}}
-</div>
-{{/if}}
-{{#if details.compactLock2.contactPhone}}
-<hr/>
-<div>
-    <h4>Contact</h4>
-    📞 {{details.compactLock2.contactPhone}}
-</div>
-{{/if}}
-<hr/>
+<nr/>
 `
 )
 
 module.exports = {
-    toNoteFeature: function (coordinates, details, operatingTimes) {
+    toNoteFeature: function (coordinates, details, _) {
         return {
             timetamp: new Date().toISOString(),
-            name: details.compactLock2.objectName,
-            description: richLockDescriptionTemplate({
-                details,
-                operatingTimes
-            }),
+            name: details.feature.objectname,
+            description: richDescriptionTemplate(details),
             position: {
                 longitude: coordinates[0],
                 latitude: coordinates[1]
             },
-            url: `https://www.eurisportal.eu/visuris/api/Locks_v2/GetLock?isrs=${details.compactLock2.locode}`,
+            url: `https://www.eurisportal.eu/visuris/api/Bridges/GetBridge?isrs=${details.feature.locode}`,
             mimeType: 'text/plain',
             properties: {
                 readOnly: true
@@ -115,8 +76,8 @@ module.exports = {
                 coordinates
             },
             properties: {
-                name: details.compactLock2.objectName,
-                description: simpleLockDescriptionTemplate(details)
+                name: details.feature.objectname,
+                description: simpleDescriptionTemplate(details)
             }
         }
     }

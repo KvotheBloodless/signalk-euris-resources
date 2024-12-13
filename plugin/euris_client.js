@@ -34,6 +34,84 @@ axios.interceptors.request.use(request => {
 })
 
 module.exports = {
+    operatingTimes: function (app, id, date) {
+        const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                isrs: id,
+                day: date.toISOString().split('T')[0]
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            })
+    },
+    listBridges: function (x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                f: 'json',
+                returnGeometry: true,
+                outFields: 'LOCODE',
+                spatialRel: 'esriSpatialRelIntersects',
+                geometryType: 'esriGeometryEnvelope',
+                inSR: spatialRef,
+                outSR: spatialRef,
+                geometry: JSON.stringify({
+                    xmin: x1,
+                    ymin: y1,
+                    xmax: x2,
+                    ymax: y2,
+                    spatialReference: {
+                        wkid: spatialRef
+                    }
+                })
+            }
+        })
+            .then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: feature.attributes.LOCODE,
+                        point: [feature.geometry.x, feature.geometry.y]
+                    }
+                })
+            })
+            .catch(error => {
+                console.log(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+            })
+    },
+    bridgeDetails: function (app, id) {
+        const url = `${baseUrl}/visuris/api/Bridges/GetBridge`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                isrs: id
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                app.debug(`ERROR fetching beidge details ${id} - ${error}`)
+            })
+    },
     listLocks: function (x1, y1, x2, y2) {
         const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
 
@@ -73,7 +151,7 @@ module.exports = {
                 console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
             })
     },
-    lockDetails: function (id) {
+    lockDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
 
         return axios.get(url, {
@@ -89,7 +167,7 @@ module.exports = {
                 return response.data
             })
             .catch(error => {
-                console.log(`ERROR fetching lock details ${id} - ${error}`)
+                app.debug(`ERROR: fetching lock details ${id} - ${error}`)
             })
     }
 }
