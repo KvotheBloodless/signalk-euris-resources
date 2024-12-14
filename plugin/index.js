@@ -23,12 +23,14 @@
   */
 
 const client = require('./euris_client')
+const handlebarUtilities = require('./handlebar_utilities')
 const lockUtils = require('./lock_utilities')
 const bridgeUtils = require('./bridge_utilities')
 const positionUtils = require('./position_utilities')
 const loadingCache = require('@inventivetalent/loading-cache')
 const time = require('@inventivetalent/time')
 const schedule = require('node-schedule')
+const xml2js =  require("xml-js")
 
 module.exports = function (app) {
     const plugin = {
@@ -40,6 +42,9 @@ module.exports = function (app) {
     const sourceConfig = new Map()
 
     plugin.start = function (options) {
+
+        handlebarUtilities.helpers()
+
         if (options.includeLocks) {
             setupForLocks(options.cachingDurationMinutes)
         }
@@ -48,6 +53,7 @@ module.exports = function (app) {
         }
 
         setupOperatingTimesCache(options.cachingDurationMinutes)
+        setupNoticeToSkippersCache(options.cachingDurationMinutes)
 
         registerAsEurisResourcesProvider()
         registerAsNoteResourcesProvider()
@@ -60,6 +66,9 @@ module.exports = function (app) {
         if (operatingTimesCache) {
             operatingTimesCacheDailyClearingJob.cancel()
             operatingTimesCache.end()
+        }
+        if (noticeToSkippersCache) {
+            noticeToSkippersCache.end()
         }
     }
 
@@ -208,7 +217,7 @@ module.exports = function (app) {
                                                     .then(details => {
                                                         return struct.noteFormatter(entity.point, details, null)
                                                     }, error => {
-                                                        app.debug(`ERROR: ${error}`)
+                                                        app.debug(`ERROR A: ${error}`)
                                                         throw error
                                                     })
                                                     .then(note => {
@@ -216,13 +225,13 @@ module.exports = function (app) {
                                                         note.$source = plugin.id
                                                         return note
                                                     }, error => {
-                                                        app.debug(`ERROR: ${error}`)
+                                                        app.debug(`ERROR B: ${error}`)
                                                         throw error
                                                     })
                                             })
                                         )
                                     }, error => {
-                                        app.debug(`ERROR: ${error}`)
+                                        app.debug(`ERROR C: ${error}`)
                                         throw error
                                     })
 
@@ -237,7 +246,7 @@ module.exports = function (app) {
                                         return map
                                     }, {})
                                 }, error => {
-                                    app.debug(`ERROR: ${error}`)
+                                    app.debug(`ERROR D: ${error}`)
                                     throw error
                                 })
                         } else {
@@ -250,10 +259,9 @@ module.exports = function (app) {
 
                         for (const struct of sourceConfig.values()) {
                             if (struct.detailsCache.has(id)) {
-                                return Promise.all([struct.detailsCache.get(id), operatingTimesCache.get(id)])
+                                return Promise.all([struct.detailsCache.get(id), operatingTimesCache.get(id), noticeToSkippersCache.get(id)])
                                     .then((values) => {
-                                        app.debug(`${JSON.stringify(values[1])}`)
-                                        return struct.noteFormatter([0, 0], values[0], values[1])
+                                        return struct.noteFormatter([0, 0], values[0], values[1], values[2])
                                     }, error => {
                                         app.debug(`ERROR: ${error}`)
                                         throw error
@@ -377,6 +385,41 @@ module.exports = function (app) {
                 operatingTimesCache.invalidateAll()
             }
         })
+    }
+
+    let noticeToSkippersCache
+
+    function setupNoticeToSkippersCache (cachingDurationMinutes) {
+        noticeToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+            id => {
+                app.debug(`Cache miss for notice to skippers of ${id}`)
+                return client.noticeToSkippersForObject(app, id, new Date())
+                    .then(details => {
+                        return Promise.all(
+                            details.map(detail => {
+                                return `${detail.headerID}|${detail.sectionId}`
+                            }).map(ntsId => {
+                                return client.noticeToSkippers(app, ntsId)
+                            })
+                        )
+                        .then((values) => {
+                            return values.map((value) => {
+                                value.xml = xml2js.xml2js(value.xml.replaceAll('\"', '"'), {
+                                    compact: true,
+                                    spaces: 0
+                                })
+                                return value
+                            })
+                        })
+                        .then((obj) => {
+                            return obj
+                        })
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+            }
+        )
     }
 
     return plugin

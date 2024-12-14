@@ -23,19 +23,6 @@
  */
 
 const handlebars = require('handlebars')
-const helpers = require('helpers-for-handlebars')
-
-helpers.math()
-helpers.array()
-helpers.number()
-
-handlebars.registerHelper('deltas', function (arr, prop) {
-    return arr.map((heightString) => `${(parseInt(heightString) / 100).toFixed(1)}m`).join(prop)
-})
-
-handlebars.registerHelper('isoDateToTime', function (dateString) {
-    return new Date(dateString).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
-})
 
 const simpleLockDescriptionTemplate = handlebars.compile(
     '{{length sublocks}} Basin(s) - Δ {{deltas (pluck sublocks "clHeight") "; "}} - {{compactLock2.contactPhone}}'
@@ -45,7 +32,7 @@ const richLockDescriptionTemplate = handlebars.compile(
     `
 <hr/>
 <div>
-    <h4>📏 Dimensions</h4>
+    <h4>Dimensions</h4>
     <table>
         <tr>
             <th>Basin</th>
@@ -55,47 +42,59 @@ const richLockDescriptionTemplate = handlebars.compile(
         </tr>
     {{#eachIndex details.sublocks}}
         <tr>
-            <td>{{plus index 1}}</td>
-            <td>{{divide item.clHeight 100}}m</td>
-            <td>{{divide item.mlengthcm 100}}m</td>
-            <td>{{divide item.mwidthcm 100}}m</td>
+            <td>📐 {{plus index 1}}</td>
+            <td>{{#if item.clHeight}}{{divide item.clHeight 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if item.mlengthcm}}{{divide item.mlengthcm 100}}{{else}}-{{/if}}m</td>
+            <td>{{#if item.clWidth}}{{divide item.clWidth 100}}{{else}}-{{/if}}m</td>
         </th>
     {{/eachIndex}}
     </table>
 </div>
+{{#if noticesToSkippers}}
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
 {{#if operatingTimes}}
 <hr/>
 <div>
     <h4>Operating times today</h4>
     {{#each operatingTimes}}
         <p>
-            {{isoDateToTime this.dateStart}} ► 🕐 {{isoDateToTime this.dateEnd}} {{this.statusMessage}}<br/>
-            {{#eachIndex this.operationEventRemarks}}
-                Remark {{plus index 1}}: {{item.remark}}<br/>
-            {{/eachIndex}} 
+            {{> operatingTime this }}
         </p>
     {{/each}}
 </div>
 {{/if}}
-{{#if details.compactLock2.contactPhone}}
 <hr/>
 <div>
-    <h4>Contact</h4>
-    📞 {{details.compactLock2.contactPhone}}
+    <h4>Contact {{details.facility.operator}}</h4>
+    {{#if details.compactLock2.comcha}}📟 VHF {{details.compactLock2.comcha}}<br/>{{/if}}
+    {{#each details.facility.contacts}}
+        {{#if this.mobiles}}📱 <a href="tel:{{this.mobiles}}">{{this.mobiles}}</a><br/>{{/if}}
+        {{#if this.phones}}☎️ <a href="tel:{{this.phones}}">{{this.phones}}</a><br/>{{/if}}
+        {{#if this.faxes}}📠 <a href="tel:{{this.faxes}}">{{this.faxes}}</a><br/>{{/if}}
+        {{#if this.emails}}📧 <a href="mailto:{{this.emails}}">{{this.emails}}</a><br/>{{/if}}
+        {{#if this.urls}}🌐 <a href="{{this.urls}}">{{this.urls}}</a><br/>{{/if}}
+    {{/each}}
 </div>
-{{/if}}
 <hr/>
 `
 )
 
 module.exports = {
-    toNoteFeature: function (coordinates, details, operatingTimes) {
+    toNoteFeature: function (coordinates, details, operatingTimes, noticesToSkippers) {
         return {
             timetamp: new Date().toISOString(),
             name: details.compactLock2.objectName,
             description: richLockDescriptionTemplate({
                 details,
-                operatingTimes
+                operatingTimes,
+                noticesToSkippers
             }),
             position: {
                 longitude: coordinates[0],

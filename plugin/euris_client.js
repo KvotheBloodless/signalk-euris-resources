@@ -34,6 +34,25 @@ axios.interceptors.request.use(request => {
 })
 
 module.exports = {
+    noticeToSkippers: function (app, id) {
+        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                identifier: id
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            })
+   },
     operatingTimes: function (app, id, date) {
         const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
 
@@ -54,8 +73,27 @@ module.exports = {
                 app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
             })
     },
+    noticeToSkippersForObject: function (app, id, date) {
+        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                objectId: id
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
+            })
+    },
     listBridges: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
+        const url = `${baseUrl}/api/arcgis/rest/services/bridges/0/query`
 
         return axios.get(url, {
             headers: {
@@ -113,7 +151,7 @@ module.exports = {
             })
     },
     listLocks: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
+        const url = `${baseUrl}/api/arcgis/rest/services/locks/0/query`
 
         return axios.get(url, {
             headers: {

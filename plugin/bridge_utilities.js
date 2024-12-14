@@ -23,41 +23,60 @@
  */
 
 const handlebars = require('handlebars')
-const helpers = require('helpers-for-handlebars')
-
-helpers.math()
-helpers.array()
-helpers.comparison()
 
 const simpleDescriptionTemplate = handlebars.compile(
-    'H {{#if feature.height}}{{divide feature.height 100}}m{{else}}unknown{{/if}} * W {{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}unknown{{/if}}'
+    'H {{#if feature.height}}{{divide feature.height 100}}m{{else}}-{{/if}} * W {{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}-{{/if}}'
 )
 
 const richDescriptionTemplate = handlebars.compile(
 `
 <nr/>
 <div>
+    <h4>Dimensions</h4>
     <table>
         <tr>
+            <th></th>
             <th>H</th>
             <th>W</th>
         </tr>
         <tr>
-            <td>{{#if feature.height}}{{divide feature.height 100}}m{{else}}unknown{{/if}}</td>
-            <td>{{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}unknown{{/if}}</td>
+            <td>📐</td>
+            <td>{{#if details.feature.height}}{{divide details.feature.height 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if details.feature.mwidthcm}}{{divide details.feature.mwidthcm 100}}m{{else}}-{{/if}}</td>
         </th>
     </table>
 </div>
+{{#if noticesToSkippers}}
+<hr/>
+<div>
+    <h4>Notices to skippers</h4>
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
 <nr/>
 `
 )
 
 module.exports = {
-    toNoteFeature: function (coordinates, details, _) {
+    toNoteFeature: function (coordinates, details, operatingTimes, noticesToSkippers) {
         return {
             timetamp: new Date().toISOString(),
             name: details.feature.objectname,
-            description: richDescriptionTemplate(details),
+            description: richDescriptionTemplate({
+                details, 
+                operatingTimes,
+                noticesToSkippers
+            }),
             position: {
                 longitude: coordinates[0],
                 latitude: coordinates[1]
