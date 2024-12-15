@@ -25,66 +25,28 @@
 const handlebars = require('handlebars')
 
 const simpleDescriptionTemplate = handlebars.compile(
-    'H {{#if feature.height}}{{divide feature.height 100}}m{{else}}-{{/if}} * W {{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}-{{/if}}'
+    '{{capitalize details.messageTypeMessage}}'
 )
 
 const richDescriptionTemplate = handlebars.compile(
 `
-<nr/>
-<div>
-    <h4>Dimensions</h4>
-    <table>
-        <tr>
-            <th></th>
-            <th>H</th>
-            <th>W</th>
-        </tr>
-        <tr>
-            <td>📐</td>
-            <td>{{#if details.feature.height}}{{divide details.feature.height 100}}m{{else}}-{{/if}}</td>
-            <td>{{#if details.feature.mwidthcm}}{{divide details.feature.mwidthcm 100}}m{{else}}-{{/if}}</td>
-        </th>
-    </table>
-</div>
-{{#if noticesToSkippers}}
-<div>
-    {{#eachIndex noticesToSkippers}}
-        <hr/>
-        <h4>Notice to skippers {{plus index 1}}</h4>    
-        {{> noticeToSkippers item }}
-    {{/eachIndex}}
-</div>
-{{/if}}
-{{#if operatingTimes}}
-<hr/>
-<div>
-    <h4>Operating times today</h4>
-    {{#each operatingTimes}}
-        <p>
-            {{> operatingTime this }}
-        </p>
-    {{/each}}
-</div>
-{{/if}}
-<nr/>
+{{> noticeToSkippers details }}
 `
 )
 
 module.exports = {
-    toNoteFeature: function (coordinates, details, operatingTimes, noticesToSkippers) {
+    toNoteFeature: function (coordinates, details, _, _) {
         return {
             timetamp: new Date().toISOString(),
-            name: details.feature.objectname,
+            name: details.title,
             description: richDescriptionTemplate({
-                details, 
-                operatingTimes,
-                noticesToSkippers
+                details
             }),
             position: {
                 longitude: coordinates[0],
                 latitude: coordinates[1]
             },
-            url: `https://www.eurisportal.eu/visuris/api/Bridges/GetBridge?isrs=${details.feature.locode}`,
+            url: null,
             mimeType: 'text/plain',
             properties: {
                 readOnly: true
@@ -98,7 +60,7 @@ module.exports = {
                 coordinates
             },
             properties: {
-                name: details.feature.objectname,
+                name: details.title,
                 description: simpleDescriptionTemplate(details)
             }
         }

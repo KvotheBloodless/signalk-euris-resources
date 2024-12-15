@@ -25,7 +25,8 @@
 const axios = require('axios')
 
 const baseUrl = 'https://www.eurisportal.eu'
-const spatialRef = 4326 // WGS 84
+const wgs84 = 4326 // WGS 84
+const mercator = 102100
 const userAgent = 'Signal K EuRIS Plugin'
 
 axios.interceptors.request.use(request => {
@@ -34,25 +35,6 @@ axios.interceptors.request.use(request => {
 })
 
 module.exports = {
-    noticeToSkippers: function (app, id) {
-        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                identifier: id
-            }
-        })
-            .then(response => {
-                return response.data
-            })
-            .catch(error => {
-                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
-            })
-   },
     operatingTimes: function (app, id, date) {
         const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
 
@@ -71,6 +53,47 @@ module.exports = {
             })
             .catch(error => {
                 app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            })
+    },
+    listNoticesToSkippers: function (x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                f: 'json',
+                where: "1=1",
+                returnGeometry: true,
+                returnIdsOnly: false,
+                outFields: 'NtSHeaderID,NtSSectionID',
+                spatialRel: 'esriSpatialRelIntersects',
+                geometryType: 'esriGeometryEnvelope',
+                outSR: wgs84,
+                geometry: JSON.stringify({
+                    xmin: longitudeToMercator(x1),
+                    ymin: latitudeToMercator(y1),
+                    xmax: longitudeToMercator(x2),
+                    ymax: latitudeToMercator(y2),
+                    spatialReference: {
+                        wkid: mercator
+                    }
+                }),
+                time: `${Date.now()},${Date.now()}`
+            }
+        })
+            .then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
+                        point: [feature.geometry.x, feature.geometry.y]
+                    }
+                })
+            })
+            .catch(error => {
+                console.log(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
             })
     },
     noticeToSkippersForObject: function (app, id, date) {
@@ -92,6 +115,25 @@ module.exports = {
                 app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
             })
     },
+    noticeToSkippers: function (app, id) {
+        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                identifier: id
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            })
+    },
     listBridges: function (x1, y1, x2, y2) {
         const url = `${baseUrl}/api/arcgis/rest/services/bridges/0/query`
 
@@ -106,15 +148,15 @@ module.exports = {
                 outFields: 'LOCODE',
                 spatialRel: 'esriSpatialRelIntersects',
                 geometryType: 'esriGeometryEnvelope',
-                inSR: spatialRef,
-                outSR: spatialRef,
+                inSR: wgs84,
+                outSR: wgs84,
                 geometry: JSON.stringify({
                     xmin: x1,
                     ymin: y1,
                     xmax: x2,
                     ymax: y2,
                     spatialReference: {
-                        wkid: spatialRef
+                        wkid: wgs84
                     }
                 })
             }
@@ -164,15 +206,15 @@ module.exports = {
                 outFields: 'LOCODE',
                 spatialRel: 'esriSpatialRelIntersects',
                 geometryType: 'esriGeometryEnvelope',
-                inSR: spatialRef,
-                outSR: spatialRef,
+                inSR: wgs84,
+                outSR: wgs84,
                 geometry: JSON.stringify({
                     xmin: x1,
                     ymin: y1,
                     xmax: x2,
                     ymax: y2,
                     spatialReference: {
-                        wkid: spatialRef
+                        wkid: wgs84
                     }
                 })
             }
@@ -208,4 +250,34 @@ module.exports = {
                 app.debug(`ERROR: fetching lock details ${id} - ${error}`)
             })
     }
+}
+
+function degreeToRadians(ang) {
+
+    return ang * (Math.PI/180.0)
+}
+
+function longitudeToMercator(lon) {
+    var r_major = 6378137.000;
+    return r_major * degreeToRadians(lon);
+}
+
+function latitudeToMercator(lat) {
+    if (lat > 89.5)
+        lat = 89.5;
+    if (lat < -89.5)
+        lat = -89.5;
+    var r_major = 6378137.000;
+    var r_minor = 6356752.3142;
+    var temp = r_minor / r_major;
+    var es = 1.0 - (temp * temp);
+    var eccent = Math.sqrt(es);
+    var phi = degreeToRadians(lat);
+    var sinphi = Math.sin(phi);
+    var con = eccent * sinphi;
+    var com = .5 * eccent;
+    con = Math.pow((1.0-con)/(1.0+con), com);
+    var ts = Math.tan(.5 * (Math.PI*0.5 - phi))/con;
+    var y = 0 - r_major * Math.log(ts);
+    return y;
 }

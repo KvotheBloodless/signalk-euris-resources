@@ -24,6 +24,7 @@
 
 const client = require('./euris_client')
 const handlebarUtilities = require('./handlebar_utilities')
+const noticesToSkippersUtils = require('./notices_to_skippers_utilities')
 const lockUtils = require('./lock_utilities')
 const bridgeUtils = require('./bridge_utilities')
 const positionUtils = require('./position_utilities')
@@ -45,6 +46,7 @@ module.exports = function (app) {
 
         handlebarUtilities.helpers()
 
+        setupForNoticesToSkippers(options.cachingDurationMinutes)
         if (options.includeLocks) {
             setupForLocks(options.cachingDurationMinutes)
         }
@@ -53,7 +55,7 @@ module.exports = function (app) {
         }
 
         setupOperatingTimesCache(options.cachingDurationMinutes)
-        setupNoticeToSkippersCache(options.cachingDurationMinutes)
+        setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
 
         registerAsEurisResourcesProvider()
         registerAsNoteResourcesProvider()
@@ -67,8 +69,8 @@ module.exports = function (app) {
             operatingTimesCacheDailyClearingJob.cancel()
             operatingTimesCache.end()
         }
-        if (noticeToSkippersCache) {
-            noticeToSkippersCache.end()
+        if (objectNoticesToSkippersCache) {
+            objectNoticesToSkippersCache.end()
         }
     }
 
@@ -259,7 +261,7 @@ module.exports = function (app) {
 
                         for (const struct of sourceConfig.values()) {
                             if (struct.detailsCache.has(id)) {
-                                return Promise.all([struct.detailsCache.get(id), operatingTimesCache.get(id), noticeToSkippersCache.get(id)])
+                                return Promise.all([struct.detailsCache.get(id), operatingTimesCache.get(id), objectNoticesToSkippersCache.get(id)])
                                     .then((values) => {
                                         return struct.noteFormatter([0, 0], values[0], values[1], values[2])
                                     }, error => {
@@ -387,10 +389,57 @@ module.exports = function (app) {
         })
     }
 
-    let noticeToSkippersCache
+    let noticesToSkippersCache
 
-    function setupNoticeToSkippersCache (cachingDurationMinutes) {
-        noticeToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+    function setupForNoticesToSkippers (cachingDurationMinutes) {
+        noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+            id => {
+                app.debug(`Cache miss for Notice to Skippers ${id}`)
+                return client.noticeToSkippers(app, id)
+                    .then(details => {
+                        details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
+                            compact: true,
+                            spaces: 0
+                        })
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+            }
+        )
+
+        sourceConfig.set('Notices to Skippers', {
+            id: 'e87a82b8-61b0-4a25-b966-817d0cfe982f',
+            detailsCache: noticesToSkippersCache,
+            listMethod: client.listNoticesToSkippers,
+            noteFormatter: noticesToSkippersUtils.toNoteFeature,
+            resourceSetFormatter: noticesToSkippersUtils.toResourceSetFeature,
+            resourceSetTemplate: {
+                type: 'ResourceSet',
+                name: 'Notices to skippers',
+                description: 'European inland waterway bridges',
+                styles: {
+                    default: {
+                        width: 7,
+                        stroke: 'white',
+                        fill: 'red',
+                        lineDash: [1, 0]
+                    }
+                },
+                values: {
+                    type: 'FeatureCollection',
+                    features: [
+                    ]
+                }
+            }
+        })
+    }
+
+    let objectNoticesToSkippersCache
+
+    function setupObjectNoticesToSkippersCache (cachingDurationMinutes) {
+        objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
                 app.debug(`Cache miss for notice to skippers of ${id}`)
                 return client.noticeToSkippersForObject(app, id, new Date())
@@ -399,7 +448,7 @@ module.exports = function (app) {
                             details.map(detail => {
                                 return `${detail.headerID}|${detail.sectionId}`
                             }).map(ntsId => {
-                                return client.noticeToSkippers(app, ntsId)
+                                return noticesToSkippersCache.get(ntsId)
                             })
                         )
                         .then((values) => {
