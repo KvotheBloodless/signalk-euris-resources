@@ -30,7 +30,11 @@ const simpleDescriptionTemplate = handlebars.compile(
 
 const richDescriptionTemplate = handlebars.compile(
 `
-<nr/>
+<hr/>
+<div>
+<p>{{#if details.feature.rT_NAME}}{{details.feature.rT_NAME}}{{else}}{{details.feature.wW_NAME}}{{/if}}, km {{divide (toInt details.feature.hectom) 10}}</p>
+</div>
+<hr/>
 <div>
     <h4>Dimensions</h4>
     <table>

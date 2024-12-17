@@ -36,7 +36,7 @@ const xml2js =  require("xml-js")
 module.exports = function (app) {
     const plugin = {
         id: 'signalk-euris-resources',
-        name: 'EuRIS Resources',
+        name: 'European Inland Waterways Resources',
         description: 'This plugin creates a bridge between SignalK and EuRIS (European River Information Services). It gathers information from EuRIS and makes it available through the SignalK resources API for consumption.'
     }
 
@@ -46,16 +46,18 @@ module.exports = function (app) {
 
         handlebarUtilities.helpers()
 
-        setupForNoticesToSkippers(options.cachingDurationMinutes)
+        setupObjectOperatingTimesCache(options.cachingDurationMinutes)
+        setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
+
+        if (options.includeNoticesToSkippers) {
+            setupForNoticesToSkippers(options.cachingDurationMinutes)
+        }
         if (options.includeLocks) {
             setupForLocks(options.cachingDurationMinutes)
         }
         if (options.includeBridges) {
             setupForBridges(options.cachingDurationMinutes)
         }
-
-        setupOperatingTimesCache(options.cachingDurationMinutes)
-        setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
 
         registerAsEurisResourcesProvider()
         registerAsNoteResourcesProvider()
@@ -65,9 +67,9 @@ module.exports = function (app) {
         for (const struct of sourceConfig.values()) {
             struct.detailsCache.end()
         }
-        if (operatingTimesCache) {
-            operatingTimesCacheDailyClearingJob.cancel()
-            operatingTimesCache.end()
+        if (objectOperatingTimesCache) {
+            objectOperatingTimesCacheDailyClearingJob.cancel()
+            objectOperatingTimesCache.end()
         }
         if (objectNoticesToSkippersCache) {
             objectNoticesToSkippersCache.end()
@@ -75,11 +77,16 @@ module.exports = function (app) {
     }
 
     plugin.schema = {
-        title: 'EuRIS Resources',
-        description: 'This plugin creates a bridge between SignalK and EuRIS (European River Information Services). It gathers information from EuRIS and makes it available through the SignalK resources API for consumption.',
+        title: plugin.name,
+        description: plugin.description,
         type: 'object',
         required: ['cachingDurationMinutes'],
         properties: {
+            includeNoticesToSkippers: {
+                type: 'boolean',
+                title: 'Include notices to skippers',
+                default: true
+            },
             includeLocks: {
                 type: 'boolean',
                 title: 'Include locks',
@@ -208,6 +215,13 @@ module.exports = function (app) {
                         if (query.position != null && query.distance != null) {
                             const bbox = positionUtils.positionToBbox(query.position, query.distance)
 
+                            const bbox2 = positionUtils.positionToBbox(query.position, 10000)
+                            client.listRis(bbox2[0], bbox2[1], bbox2[2], bbox2[3])
+                                .then(entities => {
+                                    app.debug(`entities --> ${JSON.stringify(entities)}`)
+                                })
+
+
                             const promises = []
 
                             for (const struct of sourceConfig.values()) {
@@ -219,7 +233,7 @@ module.exports = function (app) {
                                                     .then(details => {
                                                         return struct.noteFormatter(entity.point, details, null)
                                                     }, error => {
-                                                        app.debug(`ERROR A: ${error}`)
+                                                        app.debug(`ERROR: ${error}`)
                                                         throw error
                                                     })
                                                     .then(note => {
@@ -227,13 +241,13 @@ module.exports = function (app) {
                                                         note.$source = plugin.id
                                                         return note
                                                     }, error => {
-                                                        app.debug(`ERROR B: ${error}`)
+                                                        app.debug(`ERROR: ${error}`)
                                                         throw error
                                                     })
                                             })
                                         )
                                     }, error => {
-                                        app.debug(`ERROR C: ${error}`)
+                                        app.debug(`ERROR: ${error}`)
                                         throw error
                                     })
 
@@ -248,7 +262,7 @@ module.exports = function (app) {
                                         return map
                                     }, {})
                                 }, error => {
-                                    app.debug(`ERROR D: ${error}`)
+                                    app.debug(`ERROR: ${error}`)
                                     throw error
                                 })
                         } else {
@@ -261,8 +275,9 @@ module.exports = function (app) {
 
                         for (const struct of sourceConfig.values()) {
                             if (struct.detailsCache.has(id)) {
-                                return Promise.all([struct.detailsCache.get(id), operatingTimesCache.get(id), objectNoticesToSkippersCache.get(id)])
+                                return Promise.all([struct.detailsCache.get(id), objectOperatingTimesCache.get(id), objectNoticesToSkippersCache.get(id)])
                                     .then((values) => {
+                                        //app.debug(`==> ${JSON.stringify(values[0])}`)
                                         return struct.noteFormatter([0, 0], values[0], values[1], values[2])
                                     }, error => {
                                         app.debug(`ERROR: ${error}`)
@@ -366,49 +381,7 @@ module.exports = function (app) {
         })
     }
 
-    let operatingTimesCache
-    let operatingTimesCacheDailyClearingJob
-
-    function setupOperatingTimesCache (cachingDurationMinutes) {
-        operatingTimesCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-            id => {
-                app.debug(`Cache miss for operating times of ${id}`)
-                return client.operatingTimes(app, id, new Date())
-                    .then(details => {
-                        return details
-                    }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })
-            }
-        )
-        operatingTimesCacheDailyClearingJob = schedule.scheduleJob({ hour: 0, minute: 0 }, () => {
-            if (operatingTimesCache) {
-                operatingTimesCache.invalidateAll()
-            }
-        })
-    }
-
-    let noticesToSkippersCache
-
     function setupForNoticesToSkippers (cachingDurationMinutes) {
-        noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-            id => {
-                app.debug(`Cache miss for Notice to Skippers ${id}`)
-                return client.noticeToSkippers(app, id)
-                    .then(details => {
-                        details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
-                            compact: true,
-                            spaces: 0
-                        })
-                        return details
-                    }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })
-            }
-        )
-
         sourceConfig.set('Notices to Skippers', {
             id: 'e87a82b8-61b0-4a25-b966-817d0cfe982f',
             detailsCache: noticesToSkippersCache,
@@ -436,29 +409,68 @@ module.exports = function (app) {
         })
     }
 
+    let objectOperatingTimesCache
+    let objectOperatingTimesCacheDailyClearingJob
+
+    function setupObjectOperatingTimesCache (cachingDurationMinutes) {
+        objectOperatingTimesCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+            id => {
+                app.debug(`Cache miss for operating times of ${id}`)
+                return client.operatingTimes(app, id, new Date())
+                    .then(details => {
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+            }
+        )
+        objectOperatingTimesCacheDailyClearingJob = schedule.scheduleJob({ hour: 0, minute: 0 }, () => {
+            if (objectOperatingTimesCache) {
+                objectOperatingTimesCache.invalidateAll()
+            }
+        })
+    }
+
+    let noticesToSkippersCache
     let objectNoticesToSkippersCache
 
     function setupObjectNoticesToSkippersCache (cachingDurationMinutes) {
+
+        noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+            id => {
+                app.debug(`Cache miss for notice to skippers ${id}`)
+                return client.noticeToSkippers(app, id)
+                    .then(details => {
+                        // The JSON contains a strange XMl string which we need to decode.
+                        // Easiest way is to convert it to XML so that we can explore it as needed.
+                        details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
+                            compact: true,
+                            spaces: 0
+                        })
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+            }
+        )
+
         objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for notice to skippers of ${id}`)
+                app.debug(`Cache miss for notice to skippers for object ${id}`)
                 return client.noticeToSkippersForObject(app, id, new Date())
                     .then(details => {
                         return Promise.all(
                             details.map(detail => {
                                 return `${detail.headerID}|${detail.sectionId}`
                             }).map(ntsId => {
+                                // We now go to our usual cache and grab the actual NtS
                                 return noticesToSkippersCache.get(ntsId)
                             })
                         )
                         .then((values) => {
-                            return values.map((value) => {
-                                value.xml = xml2js.xml2js(value.xml.replaceAll('\"', '"'), {
-                                    compact: true,
-                                    spaces: 0
-                                })
-                                return value
-                            })
+                            return values
                         })
                         .then((obj) => {
                             return obj

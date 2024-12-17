@@ -24,12 +24,16 @@
 
 const handlebars = require('handlebars')
 
-const simpleLockDescriptionTemplate = handlebars.compile(
+const simpleDescriptionTemplate = handlebars.compile(
     '{{length sublocks}} Basin(s) - Δ {{deltas (pluck sublocks "clHeight") "; "}} - {{compactLock2.contactPhone}}'
 )
 
-const richLockDescriptionTemplate = handlebars.compile(
+const richDescriptionTemplate = handlebars.compile(
     `
+<hr/>
+<div>
+<p>{{#if details.routeName}}{{details.routeName}}{{else}}{{details.compactLock2.waterwayName}}{{/if}}, km {{divide (toInt details.compactLock2.hectom) 10}}</p>
+</div>
 <hr/>
 <div>
     <h4>Dimensions</h4>
@@ -73,7 +77,7 @@ const richLockDescriptionTemplate = handlebars.compile(
 <hr/>
 <div>
     <h4>Contact {{details.facility.operator}}</h4>
-    {{#if details.compactLock2.comcha}}📟 VHF {{details.compactLock2.comcha}}<br/>{{/if}}
+    {{#if details.compactLock2.comcha}}📟 VHF {{details.compactLock2.comcha}}<br/>{{/if}}{{#if details.compactLock2.comname}} callsign {{details.compactLock2.comname}}<br/>{{/if}}
     {{#each details.facility.contacts}}
         {{#if this.mobiles}}📱 <a href="tel:{{this.mobiles}}">{{this.mobiles}}</a><br/>{{/if}}
         {{#if this.phones}}☎️ <a href="tel:{{this.phones}}">{{this.phones}}</a><br/>{{/if}}
@@ -91,7 +95,7 @@ module.exports = {
         return {
             timetamp: new Date().toISOString(),
             name: details.compactLock2.objectName,
-            description: richLockDescriptionTemplate({
+            description: richDescriptionTemplate({
                 details,
                 operatingTimes,
                 noticesToSkippers
@@ -115,7 +119,7 @@ module.exports = {
             },
             properties: {
                 name: details.compactLock2.objectName,
-                description: simpleLockDescriptionTemplate(details)
+                description: simpleDescriptionTemplate(details)
             }
         }
     }

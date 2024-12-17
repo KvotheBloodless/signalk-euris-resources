@@ -249,6 +249,109 @@ module.exports = {
             .catch(error => {
                 app.debug(`ERROR: fetching lock details ${id} - ${error}`)
             })
+    },
+    listJunctions: function (x1, y1, x2, y2) {
+        return listRis('junction', x1, y1, x2, y2)
+    }, 
+    listTerminals: function (x1, y1, x2, y2) {
+        return listRis('termnl', x1, y1, x2, y2)
+    },  
+    listBuiltUpAreas: function (x1, y1, x2, y2) {
+        return listRis('BUAARE', x1, y1, x2, y2)
+    },    
+    listDistanceMarkers: function (x1, y1, x2, y2) {
+        return listRis('dismar', x1, y1, x2, y2)
+    },    
+    listRadioCallingPoints: function (x1, y1, x2, y2) {
+        return listRis('rdocal', x1, y1, x2, y2)
+    },    
+    listFuelpumps: function (x1, y1, x2, y2) {
+        return listRis('bunsta', x1, y1, x2, y2)
+    },
+    listHarbours: function (x1, y1, x2, y2) {
+        return listRis('hrbare', x1, y1, x2, y2)
+    },
+    listTranshipmentBerths: function (x1, y1, x2, y2) {
+        return listRis('berths_1', x1, y1, x2, y2)
+    },
+    listBerthsWithoutTranshipment: function (x1, y1, x2, y2) {
+        return listRis('berths_3', x1, y1, x2, y2)
+    },
+    listPassengerBerths: function (x1, y1, x2, y2) {
+        return listRis('berths_9', x1, y1, x2, y2)
+    },
+    listAnchorageBerths: function (x1, y1, x2, y2) {
+        return listRis('achbrt', x1, y1, x2, y2)
+    },
+    listPontoons: function (x1, y1, x2, y2) {
+        return listRis('ponton', x1, y1, x2, y2)
+    },
+    listTurningBasins: function (x1, y1, x2, y2) {
+        return listRis('trnbsn', x1, y1, x2, y2)
+    },
+    listWaterwayGuages: function (x1, y1, x2, y2) {
+        return listRis('wtwgag', x1, y1, x2, y2)
+    },
+    listRis: function (functionCode, x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/risindex/0/query`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                f: 'json',
+                returnGeometry: true,
+                outFields: '*',
+                spatialRel: 'esriSpatialRelIntersects',
+                geometryType: 'esriGeometryEnvelope',
+                inSR: wgs84,
+                outSR: wgs84,
+                geometry: JSON.stringify({
+                    xmin: longitudeToMercator(x1),
+                    ymin: latitudeToMercator(y1),
+                    xmax: longitudeToMercator(x2),
+                    ymax: latitudeToMercator(y2),
+                    spatialReference: {
+                        wkid: mercator
+                    }
+                }),
+                time: `${Date.now()},${Date.now()}`,
+                where: `FNCTION eq '${functionCode}'`
+            }
+        })
+            .then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: feature.attributes.ISRS,
+                        name: feature.attributes.OBJECTNAME,
+                        point: [feature.geometry.x, feature.geometry.y]
+                    }
+                })
+            })
+            .catch(error => {
+                console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+            })
+    },
+    risDetails: function (id) {
+        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
+
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                isrs: id
+            }
+        })
+            .then(response => {
+                return response.data
+            })
+            .catch(error => {
+                console.log(`ERROR: fetching lock details ${id} - ${error}`)
+            })
     }
 }
 

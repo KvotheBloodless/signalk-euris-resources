@@ -29,6 +29,7 @@ module.exports = {
     helpers: function () {
         
         helpersForHandlebars.string()
+        helpersForHandlebars.number()
         helpersForHandlebars.math()
         helpersForHandlebars.array()
         helpersForHandlebars.comparison()
@@ -41,6 +42,10 @@ module.exports = {
         
         handlebars.registerHelper('isoDateToTime', function (dateString) {
             return new Date(dateString).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+        })
+
+        handlebars.registerHelper('toInt', function(str) {
+            return parseInt(str,10)
         })
 
         handlebars.registerPartial('operatingTime', 
