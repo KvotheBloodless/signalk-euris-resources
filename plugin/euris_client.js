@@ -32,270 +32,323 @@ const userAgent = 'Signal K EuRIS Plugin'
 axios.interceptors.request.use(request => {
     // console.log('Starting Request', JSON.stringify(request, null, 2))
     return request
+}, error => {
+    Promise.reject(error)
+})
+  
+axios.interceptors.response.use(response => {
+    // console.log('Received Response', JSON.stringify(response.data, null, 2))
+    return response
+}, error => {
+    Promise.reject(error)
 })
 
 module.exports = {
-    operatingTimes: function (app, id, date) {
-        const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
+    listBridges: async function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
 
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                isrs: id,
-                day: date.toISOString().split('T')[0]
-            }
-        })
-            .then(response => {
-                return response.data
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    f: 'json',
+                    returnGeometry: true,
+                    outFields: 'LOCODE,OBJECTNAME',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    geometryType: 'esriGeometryEnvelope',
+                    inSR: wgs84,
+                    outSR: wgs84,
+                    geometry: JSON.stringify({
+                        xmin: x1,
+                        ymin: y1,
+                        xmax: x2,
+                        ymax: y2,
+                        spatialReference: {
+                            wkid: wgs84
+                        }
+                    })
+                }
             })
-            .catch(error => {
-                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            return response.data.features.map((feature) => {
+                return {
+                    id: feature.attributes.LOCODE,
+                    name: feature.attributes.OBJECTNAME,
+                    point: [feature.geometry.x, feature.geometry.y],
+                    type: 'bridge'
+                }
             })
+        } catch (error) {
+            app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
     },
-    listNoticesToSkippers: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
+    bridgeDetails: async function (app, id) {
+        const url = `${baseUrl}/visuris/api/BridgeAreas/GetBridgeArea`
 
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                f: 'json',
-                where: "1=1",
-                returnGeometry: true,
-                returnIdsOnly: false,
-                outFields: 'NtSHeaderID,NtSSectionID',
-                spatialRel: 'esriSpatialRelIntersects',
-                geometryType: 'esriGeometryEnvelope',
-                outSR: wgs84,
-                geometry: JSON.stringify({
-                    xmin: longitudeToMercator(x1),
-                    ymin: latitudeToMercator(y1),
-                    xmax: longitudeToMercator(x2),
-                    ymax: latitudeToMercator(y2),
-                    spatialReference: {
-                        wkid: mercator
-                    }
-                }),
-                time: `${Date.now()},${Date.now()}`
-            }
-        })
-            .then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    isrs: id
+                }
             })
-            .catch(error => {
-                console.log(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR fetching bridge details ${id} - ${error}`)
+        }
     },
-    noticeToSkippersForObject: function (app, id, date) {
-        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
+    listLocks: async function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
 
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                objectId: id
-            }
-        })
-            .then(response => {
-                return response.data
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    f: 'json',
+                    returnGeometry: true,
+                    outFields: 'LOCODE,OBJECTNAME',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    geometryType: 'esriGeometryEnvelope',
+                    inSR: wgs84,
+                    outSR: wgs84,
+                    geometry: JSON.stringify({
+                        xmin: x1,
+                        ymin: y1,
+                        xmax: x2,
+                        ymax: y2,
+                        spatialReference: {
+                            wkid: wgs84
+                        }
+                    })
+                }
             })
-            .catch(error => {
-                app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
+            return response.data.features.map((feature) => {
+                return {
+                    id: feature.attributes.LOCODE,
+                    name: feature.attributes.OBJECTNAME,
+                    point: [feature.geometry.x, feature.geometry.y],
+                    type: 'lock'
+                }
             })
+        } catch (error) {
+            app.debug(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
     },
-    noticeToSkippers: function (app, id) {
-        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                identifier: id
-            }
-        })
-            .then(response => {
-                return response.data
-            })
-            .catch(error => {
-                app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
-            })
-    },
-    listBridges: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/bridges/0/query`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                f: 'json',
-                returnGeometry: true,
-                outFields: 'LOCODE',
-                spatialRel: 'esriSpatialRelIntersects',
-                geometryType: 'esriGeometryEnvelope',
-                inSR: wgs84,
-                outSR: wgs84,
-                geometry: JSON.stringify({
-                    xmin: x1,
-                    ymin: y1,
-                    xmax: x2,
-                    ymax: y2,
-                    spatialReference: {
-                        wkid: wgs84
-                    }
-                })
-            }
-        })
-            .then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.LOCODE,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-            })
-            .catch(error => {
-                console.log(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-            })
-    },
-    bridgeDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/Bridges/GetBridge`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                isrs: id
-            }
-        })
-            .then(response => {
-                return response.data
-            })
-            .catch(error => {
-                app.debug(`ERROR fetching beidge details ${id} - ${error}`)
-            })
-    },
-    listLocks: function (x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/locks/0/query`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                f: 'json',
-                returnGeometry: true,
-                outFields: 'LOCODE',
-                spatialRel: 'esriSpatialRelIntersects',
-                geometryType: 'esriGeometryEnvelope',
-                inSR: wgs84,
-                outSR: wgs84,
-                geometry: JSON.stringify({
-                    xmin: x1,
-                    ymin: y1,
-                    xmax: x2,
-                    ymax: y2,
-                    spatialReference: {
-                        wkid: wgs84
-                    }
-                })
-            }
-        })
-            .then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.LOCODE,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-            })
-            .catch(error => {
-                console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-            })
-    },
-    lockDetails: function (app, id) {
+    lockDetails: async function (app, id) {
         const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
 
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                isrs: id
-            }
-        })
-            .then(response => {
-                return response.data
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    isrs: id
+                }
             })
-            .catch(error => {
-                app.debug(`ERROR: fetching lock details ${id} - ${error}`)
-            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching lock details ${id} - ${error}`)
+        }
     },
-    listJunctions: function (x1, y1, x2, y2) {
-        return listRis('junction', x1, y1, x2, y2)
-    }, 
-    listTerminals: function (x1, y1, x2, y2) {
-        return listRis('termnl', x1, y1, x2, y2)
-    },  
-    listBuiltUpAreas: function (x1, y1, x2, y2) {
-        return listRis('BUAARE', x1, y1, x2, y2)
-    },    
-    listDistanceMarkers: function (x1, y1, x2, y2) {
-        return listRis('dismar', x1, y1, x2, y2)
-    },    
-    listRadioCallingPoints: function (x1, y1, x2, y2) {
-        return listRis('rdocal', x1, y1, x2, y2)
-    },    
-    listFuelpumps: function (x1, y1, x2, y2) {
-        return listRis('bunsta', x1, y1, x2, y2)
+    listBerthsWithoutTranshipment: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'berths_3', x1, y1, x2, y2)
     },
-    listHarbours: function (x1, y1, x2, y2) {
-        return listRis('hrbare', x1, y1, x2, y2)
+    listBerthsWithTranshipment: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'berths_1', x1, y1, x2, y2)
     },
-    listTranshipmentBerths: function (x1, y1, x2, y2) {
-        return listRis('berths_1', x1, y1, x2, y2)
+    listFerryBerths: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'berths_9', x1, y1, x2, y2)
     },
-    listBerthsWithoutTranshipment: function (x1, y1, x2, y2) {
-        return listRis('berths_3', x1, y1, x2, y2)
-    },
-    listPassengerBerths: function (x1, y1, x2, y2) {
-        return listRis('berths_9', x1, y1, x2, y2)
-    },
-    listAnchorageBerths: function (x1, y1, x2, y2) {
-        return listRis('achbrt', x1, y1, x2, y2)
-    },
-    listPontoons: function (x1, y1, x2, y2) {
-        return listRis('ponton', x1, y1, x2, y2)
-    },
-    listTurningBasins: function (x1, y1, x2, y2) {
-        return listRis('trnbsn', x1, y1, x2, y2)
-    },
-    listWaterwayGuages: function (x1, y1, x2, y2) {
-        return listRis('wtwgag', x1, y1, x2, y2)
-    },
-    listRis: function (functionCode, x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/risindex/0/query`
+    berthDetails: async function (app, id) {
+        const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
 
-        return axios.get(url, {
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    isrs: id
+                }
+            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching berth details ${id} - ${error}`)
+        }
+    },
+    risDetails: async function (app, id) {
+        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    isrs: id
+                }
+            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching RIS index details ${id} - ${error}`)
+        }
+    },
+// ABOVE THIS LINE, REVIEWED, GOOD
+    operatingTimes: async function (app, id, date) {
+        const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    isrs: id,
+                    day: date.toISOString().split('T')[0]
+                }
+            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+        }
+    },
+    listNoticesToSkippers: async function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    f: 'json',
+                    where: "1=1",
+                    returnGeometry: true,
+                    returnIdsOnly: false,
+                    outFields: 'NtSHeaderID,NtSSectionID,Title',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    geometryType: 'esriGeometryEnvelope',
+                    outSR: wgs84,
+                    geometry: JSON.stringify({
+                        xmin: longitudeToMercator(x1),
+                        ymin: latitudeToMercator(y1),
+                        xmax: longitudeToMercator(x2),
+                        ymax: latitudeToMercator(y2),
+                        spatialReference: {
+                            wkid: mercator
+                        }
+                    }),
+                    time: `${Date.now()},${Date.now()}`
+                }
+            })
+            return response.data.features.map((feature) => {
+                return {
+                    id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
+                    name: `${feature.attributes.Title}`,
+                    point: [feature.geometry.x, feature.geometry.y],
+                    type: 'notam'
+                }
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    },
+    noticeToSkippersForObject: async function (app, id, date) {
+        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    objectId: id
+                }
+            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
+        }
+    },
+    noticeToSkippers: async function (app, id) {
+        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    identifier: id
+                }
+            })
+            return response.data
+        } catch (error) {
+            app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+        }
+    },
+    listJunctions: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'junction', x1, y1, x2, y2)
+    }, 
+    listTerminals: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'termnl', x1, y1, x2, y2)
+    },  
+    listBuiltUpAreas: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'BUAARE', x1, y1, x2, y2)
+    },    
+    listDistanceMarkers: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'dismar', x1, y1, x2, y2)
+    },    
+    listRadioCallingPoints: function (app, x1, y1, x2, y2) {
+        return listRisapp, ('rdocal', x1, y1, x2, y2)
+    },    
+    listFuelpumps: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'bunsta', x1, y1, x2, y2)
+    },
+    listHarbours: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'hrbare', x1, y1, x2, y2)
+    },
+    listTranshipmentBerths: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'berths_1', x1, y1, x2, y2)
+    },
+    listPassengerBerths: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'berths_9', x1, y1, x2, y2)
+    },
+    listAnchorageBerths: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'achbrt', x1, y1, x2, y2)
+    },
+    listPontoons: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'ponton', x1, y1, x2, y2)
+    },
+    listTurningBasins: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'trnbsn', x1, y1, x2, y2)
+    },
+    listWaterwayGuages: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'wtwgag', x1, y1, x2, y2)
+    }
+}
+
+async function listRis(app, functionCode, x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/risindex/0/query`
+
+    try {
+        const response = await axios.get(url, {
             headers: {
                 'User-Agent': userAgent,
                 Accept: 'application/json'
@@ -303,7 +356,7 @@ module.exports = {
             params: {
                 f: 'json',
                 returnGeometry: true,
-                outFields: '*',
+                outFields: 'ISRS,OBJECTNAME,FNCTION',
                 spatialRel: 'esriSpatialRelIntersects',
                 geometryType: 'esriGeometryEnvelope',
                 inSR: wgs84,
@@ -318,40 +371,19 @@ module.exports = {
                     }
                 }),
                 time: `${Date.now()},${Date.now()}`,
-                where: `FNCTION eq '${functionCode}'`
+                where: `FNCTION = '${functionCode}'`
             }
         })
-            .then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.ISRS,
-                        name: feature.attributes.OBJECTNAME,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-            })
-            .catch(error => {
-                console.log(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-            })
-    },
-    risDetails: function (id) {
-        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
-
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                isrs: id
+        return response.data.features.map((feature) => {
+            return {
+                id: feature.attributes.ISRS,
+                name: feature.attributes.OBJECTNAME,
+                point: [feature.geometry.x, feature.geometry.y],
+                type: feature.attributes.FNCTION
             }
         })
-            .then(response => {
-                return response.data
-            })
-            .catch(error => {
-                console.log(`ERROR: fetching lock details ${id} - ${error}`)
-            })
+    } catch (error) {
+        app.debug(`ERROR fetching RIS index (${functionCode}) list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
     }
 }
 

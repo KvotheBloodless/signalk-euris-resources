@@ -1,0 +1,53 @@
+<hr/>
+<p>{{#if entity.routeName}}{{entity.routeName}}{{else}}{{entity.compactBerth2.waterwayName}}{{/if}}, km {{divide (toInt entity.compactBerth2.hectom) 10}}</p>
+<hr/>
+<div>
+    <h4>📐 Features</h4>
+        {{#if entity.compactBerth2.bank}}↔ {{berthBank entity.compactBerth2.bank}}<br/>{{/if}}
+        <table style="width: 100%;text-align:center;">
+        <tr>
+            <th>Length</th>
+            <th>Allowed vessel length</th>
+            <th>Width</th>
+        </tr>
+        <tr>
+            <td>{{#if entity.length}}{{divide entity.length 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if entity.allowedVesselLength}}{{divide entity.allowedVesselLength 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if entity.width}}{{divide entity.width 100}}m{{else}}-{{/if}}</td>
+        </th>
+    </table>
+</div>
+<hr/>
+<div>
+    <h4>Usage</h4>
+    {{#if entity.status}}✅ {{berthStatus entity.status}}<br/>{{/if}}
+    {{#if entity.allowedCones}}🔥 {{berthAllowedCones entity.allowedCones}}<br/>{{/if}}
+    {{#if entity.compactBerth2.berthCategory}}▵ {{berthCategory entity.compactBerth2.berthCategory}}<br/>{{/if}}
+</div>
+<div>
+    {{#if entity.compactBerth2.shipCategoryMessages}}Vessel category(ies): {{join entity.compactBerth2.shipCategoryMessages ', '}}<br/>{{/if}}
+    {{#if entity.condition}}Condition: {{entity.condition}}<br/>{{/if}}
+</div>
+{{#if noticesToSkippers}}
+<hr/>
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
+{{> footer}}
+{{> disclaimer}}

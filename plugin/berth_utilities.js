@@ -25,52 +25,12 @@
 const handlebars = require('handlebars')
 
 const simpleDescriptionTemplate = handlebars.compile(
-    'H {{#if feature.height}}{{divide feature.height 100}}m{{else}}-{{/if}} * W {{#if feature.mwidthcm}}{{divide feature.mwidthcm 100}}m{{else}}-{{/if}}'
+    'test'
 )
 
 const richDescriptionTemplate = handlebars.compile(
 `
-<hr/>
-<div>
-<p>{{#if details.feature.rT_NAME}}{{details.feature.rT_NAME}}{{else}}{{details.feature.wW_NAME}}{{/if}}, km {{divide (toInt details.feature.hectom) 10}}</p>
-</div>
-<hr/>
-<div>
-    <h4>Dimensions</h4>
-    <table>
-        <tr>
-            <th></th>
-            <th>H</th>
-            <th>W</th>
-        </tr>
-        <tr>
-            <td>📐</td>
-            <td>{{#if details.feature.height}}{{divide details.feature.height 100}}m{{else}}-{{/if}}</td>
-            <td>{{#if details.feature.mwidthcm}}{{divide details.feature.mwidthcm 100}}m{{else}}-{{/if}}</td>
-        </th>
-    </table>
-</div>
-{{#if noticesToSkippers}}
-<div>
-    {{#eachIndex noticesToSkippers}}
-        <hr/>
-        <h4>Notice to skippers {{plus index 1}}</h4>    
-        {{> noticeToSkippers item }}
-    {{/eachIndex}}
-</div>
-{{/if}}
-{{#if operatingTimes}}
-<hr/>
-<div>
-    <h4>Operating times today</h4>
-    {{#each operatingTimes}}
-        <p>
-            {{> operatingTime this }}
-        </p>
-    {{/each}}
-</div>
-{{/if}}
-<nr/>
+test
 `
 )
 
@@ -78,9 +38,9 @@ module.exports = {
     toNoteFeature: function (coordinates, details, operatingTimes, noticesToSkippers) {
         return {
             timetamp: new Date().toISOString(),
-            name: details.feature.objectname,
+            name: details ? details.compactBerth2.objectname : 'Berth',
             description: richDescriptionTemplate({
-                details, 
+                details,
                 operatingTimes,
                 noticesToSkippers
             }),
@@ -88,22 +48,10 @@ module.exports = {
                 longitude: coordinates[0],
                 latitude: coordinates[1]
             },
-            url: `https://www.eurisportal.eu/visuris/api/Bridges/GetBridge?isrs=${details.feature.locode}`,
+            url: `https://www.eurisportal.eu/visuris/api/Berths_v2/GetBerth?isrs=`,
             mimeType: 'text/plain',
             properties: {
                 readOnly: true
-            }
-        }
-    },
-    toResourceSetFeature: function (coordinates, details) {
-        return {
-            geometry: {
-                type: 'Point',
-                coordinates
-            },
-            properties: {
-                name: details.feature.objectname,
-                description: simpleDescriptionTemplate(details)
             }
         }
     }

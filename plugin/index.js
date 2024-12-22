@@ -24,9 +24,6 @@
 
 const client = require('./euris_client')
 const handlebarUtilities = require('./handlebar_utilities')
-const noticesToSkippersUtils = require('./notices_to_skippers_utilities')
-const lockUtils = require('./lock_utilities')
-const bridgeUtils = require('./bridge_utilities')
 const positionUtils = require('./position_utilities')
 const loadingCache = require('@inventivetalent/loading-cache')
 const time = require('@inventivetalent/time')
@@ -34,6 +31,8 @@ const schedule = require('node-schedule')
 const xml2js =  require("xml-js")
 
 module.exports = function (app) {
+    const ID_SEPARATOR = '@'
+
     const plugin = {
         id: 'signalk-euris-resources',
         name: 'European Inland Waterways Resources',
@@ -49,17 +48,25 @@ module.exports = function (app) {
         setupObjectOperatingTimesCache(options.cachingDurationMinutes)
         setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
 
-        if (options.includeNoticesToSkippers) {
-            setupForNoticesToSkippers(options.cachingDurationMinutes)
-        }
-        if (options.includeLocks) {
-            setupForLocks(options.cachingDurationMinutes)
-        }
-        if (options.includeBridges) {
+        if (options.includeBridges && false) {
             setupForBridges(options.cachingDurationMinutes)
         }
+        if (options.includeLocks && false) {
+            setupForLocks(options.cachingDurationMinutes)
+        }
+        if (options.includeBerthsWithoutTranshipment) {
+            setupForBerthsWithoutTranshipment(options.cachingDurationMinutes)
+        }
+        if (options.includeBerthsWithTranshipment) {
+            setupForBerthsWithTranshipment(options.cachingDurationMinutes)
+        }
+        if (options.includeFerryBerths) {
+            setupForFerryBerths(options.cachingDurationMinutes)
+        }
+        if (options.includeNoticesToSkippers && false) {
+            setupForNoticesToSkippers(options.cachingDurationMinutes)
+        }
 
-        registerAsEurisResourcesProvider()
         registerAsNoteResourcesProvider()
     }
 
@@ -82,9 +89,9 @@ module.exports = function (app) {
         type: 'object',
         required: ['cachingDurationMinutes'],
         properties: {
-            includeNoticesToSkippers: {
+            includeBridges: {
                 type: 'boolean',
-                title: 'Include notices to skippers',
+                title: 'Include bridges',
                 default: true
             },
             includeLocks: {
@@ -92,9 +99,24 @@ module.exports = function (app) {
                 title: 'Include locks',
                 default: true
             },
-            includeBridges: {
+            includeBerthsWithoutTranshipment: {
                 type: 'boolean',
-                title: 'Include bridges',
+                title: 'Include berths without transhipment',
+                default: true
+            },
+            includeBerthsWithTranshipment : {
+                type: 'boolean',
+                title: 'Include berths with transhipment',
+                default: true
+            },
+            includeFerryBerths : {
+                type: 'boolean',
+                title: 'Include ferry berths',
+                default: true
+            },
+            includeNoticesToSkippers: {
+                type: 'boolean',
+                title: 'Include notices to skippers',
                 default: true
             },
             cachingDurationMinutes: {
@@ -102,105 +124,6 @@ module.exports = function (app) {
                 title: 'How long to cache data from EuRIS in minutes (longer = less data trafic; shorter = more up to date data)',
                 default: 60
             }
-        }
-    }
-
-    function registerAsEurisResourcesProvider () {
-        try {
-            app.registerResourceProvider({
-                type: 'EuRIS',
-                methods: {
-                    listResources: (query) => {
-                        app.debug(`Incoming request to list EuRIS resources - query: ${JSON.stringify(query)}`)
-
-                        const promises = []
-
-                        for (const struct of sourceConfig.values()) {
-                            // TODO: Position needs to be based on boat location or query (when available)
-                            const promise = struct.listMethod(4.738073872791906, 46.73320999145508, 4.938073872791906, 46.93320999145508)
-                                .then(entities => {
-                                    return Promise.all(
-                                        entities.map(entity => {
-                                            return struct.detailsCache.get(entity.id)
-                                                .then(details => {
-                                                    return struct.resourceSetFormatter(entity.point, details)
-                                                }, error => {
-                                                    app.debug(`ERROR: ${error}`)
-                                                    throw error
-                                                })
-                                        })
-                                    )
-                                }, error => {
-                                    app.debug(`ERROR: ${error}`)
-                                    throw error
-                                })
-
-                            promises.push(promise)
-                        }
-
-                        return Promise.all(promises)
-                            .then((values) => {
-                                const resources = {}
-                                for (const struct of sourceConfig.values()) {
-                                    resources[struct.id] = structuredClone(struct.resourceSetTemplate)
-                                }
-
-                                let index = 0
-                                for (const struct of sourceConfig.values()) {
-                                    values[index++].forEach((entity) => resources[struct.id].values.features.push(entity))
-                                }
-
-                                return resources
-                            }, error => {
-                                app.debug(`ERROR: ${error}`)
-                                throw error
-                            })
-                    },
-                    getResource: (id, property) => {
-                        app.debug(`Incoming request to get EuRIS resource - ID: ${id}`)
-
-                        for (const struct of sourceConfig.values()) {
-                            if (struct.id === id) {
-                                // TODO: Position needs to be based on boat location or query (when available)
-                                return struct.listMethod(4.738073872791906, 46.73320999145508, 4.938073872791906, 46.93320999145508)
-                                    .then(entities => {
-                                        return Promise.all(
-                                            entities.map(entity => {
-                                                return struct.detailsCache.get(entity.id)
-                                                    .then(details => {
-                                                        return struct.resourceSetFormatter(entity.point, details)
-                                                    }, error => {
-                                                        app.debug(`ERROR: ${error}`)
-                                                        throw error
-                                                    })
-                                            })
-                                        )
-                                    }, error => {
-                                        app.debug(`ERROR: ${error}`)
-                                        throw error
-                                    }).then((entities) => {
-                                        const resources = structuredClone(struct.resourceSetTemplate)
-                                        entities.forEach((entity) => resources.values.features.push(entity))
-                                        return resources
-                                    }, error => {
-                                        app.debug(`ERROR: ${error}`)
-                                        throw error
-                                    })
-                            }
-                        }
-
-                        return Promise.reject(new Error(`No resource found using ID ${id}`))
-                    },
-                    setResource: (id, value) => {
-                        throw (new Error('Not supported!'))
-                    },
-                    deleteResource: (id) => {
-                        throw (new Error('Not supported!'))
-                    }
-                }
-            })
-        } catch (error) {
-            app.debug(`Cannot register as a resource provider ${error}`)
         }
     }
 
@@ -215,78 +138,78 @@ module.exports = function (app) {
                         if (query.position != null && query.distance != null) {
                             const bbox = positionUtils.positionToBbox(query.position, query.distance)
 
-                            const bbox2 = positionUtils.positionToBbox(query.position, 10000)
-                            client.listRis(bbox2[0], bbox2[1], bbox2[2], bbox2[3])
-                                .then(entities => {
-                                    app.debug(`entities --> ${JSON.stringify(entities)}`)
-                                })
-
-
                             const promises = []
 
                             for (const struct of sourceConfig.values()) {
-                                const promise = struct.listMethod(bbox[0], bbox[1], bbox[2], bbox[3])
-                                    .then(entities => {
-                                        return Promise.all(
-                                            entities.map(entity => {
-                                                return struct.detailsCache.get(entity.id)
-                                                    .then(details => {
-                                                        return struct.noteFormatter(entity.point, details, null)
-                                                    }, error => {
-                                                        app.debug(`ERROR: ${error}`)
-                                                        throw error
-                                                    })
-                                                    .then(note => {
-                                                        note.id = entity.id
-                                                        note.$source = plugin.id
-                                                        return note
-                                                    }, error => {
-                                                        app.debug(`ERROR: ${error}`)
-                                                        throw error
-                                                    })
-                                            })
-                                        )
-                                    }, error => {
-                                        app.debug(`ERROR: ${error}`)
-                                        throw error
+                                const promise = struct.listMethod(app, bbox[0], bbox[1], bbox[2], bbox[3]).then(entities => {
+                                    app.debug(`ENTITIES ==> ${JSON.stringify(entities)}`)
+
+                                    return entities.map(entity => {
+                                        return {
+                                            id: `${entity.type}${ID_SEPARATOR}${entity.id}`,
+                                            name: entity.name,
+                                            position: {
+                                                longitude: entity.point[0], 
+                                                latitude: entity.point[1]
+                                            },
+                                            mimeType: 'text/plain',
+                                            properties: {
+                                                readOnly: true,
+                                                skIcon: entity.type
+                                            },
+                                            timestamp: new Date().toISOString(),
+                                            $source: plugin.id
+                                        }
                                     })
+                                })
 
                                 promises.push(promise)
                             }
 
-                            return Promise.all(promises)
-                                .then(promises => {
-                                    return promises.flat().reduce((map, obj) => {
-                                        map[obj.id] = obj
-                                        delete obj.id
-                                        return map
-                                    }, {})
-                                }, error => {
-                                    app.debug(`ERROR: ${error}`)
-                                    throw error
-                                })
+                            return Promise.all(promises).then(promises => {
+                                return promises.flat().reduce((map, obj) => {
+                                    map[obj.id] = obj
+                                    delete obj.id
+                                    return map
+                                }, {})
+                            }, error => {
+                                app.debug(`ERROR: ${error}`)
+                                throw error
+                            })
                         } else {
-                            app.debug(`WARN: Could not use provided query parameters - ${query}`)
+                            app.debug(`WARN: Could not use provided query parameters - ${JSON.stringify(query)}`)
                             throw (new Error('Not supported!'))
                         }
                     },
                     getResource: (id, property) => {
                         app.debug(`Incoming request to get note ${id}`)
 
-                        for (const struct of sourceConfig.values()) {
-                            if (struct.detailsCache.has(id)) {
-                                return Promise.all([struct.detailsCache.get(id), objectOperatingTimesCache.get(id), objectNoticesToSkippersCache.get(id)])
-                                    .then((values) => {
-                                        //app.debug(`==> ${JSON.stringify(values[0])}`)
-                                        return struct.noteFormatter([0, 0], values[0], values[1], values[2])
-                                    }, error => {
-                                        app.debug(`ERROR: ${error}`)
-                                        throw error
-                                    })
-                                    .then(resourceSet => {
-                                        resourceSet.$source = plugin.id
-                                        return resourceSet
-                                    })
+                        const parts = id.split(ID_SEPARATOR)
+                        if(parts.length = 2) {
+                            const config = sourceConfig.get(parts[0])
+                            if(config !== undefined) {
+                                return Promise.all([config.detailsCache.get(parts[1]), objectOperatingTimesCache.get(parts[1]), objectNoticesToSkippersCache.get(parts[1])]).then(values => {
+                                    if(values[0] === null) {
+                                        throw new Error(`Could not retrieve entity ${parts[1]}`)
+                                    }
+
+                                    app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
+
+                                    if (Object.hasOwn(values[0], 'unLocode')) {
+                                        // This is a fallback RIS object
+                                        return handlebarUtilities.ris(parts[0], values[0], values[1], values[2])
+                                    }
+
+                                    return config.formatter(values[0], values[1], values[2])
+                                }).then(note => {
+                                    note.mimeType = 'text/plain',
+                                    note.$source = plugin.id
+                                    
+                                    return note
+                                }).catch((error) => {
+                                    app.debug(`ERROR: ${error}`)
+                                    throw error
+                                })
                             }
                         }
                     },
@@ -299,57 +222,74 @@ module.exports = function (app) {
                 }
             })
         } catch (error) {
-            app.debug(`Cannot register as a resource provider ${error}`)
+            app.debug(`Cannot register as a note resource provider ${error}`)
         }
     }
 
-    function setupForLocks (cachingDurationMinutes) {
-        sourceConfig.set('Locks', {
-            id: 'a562d4bd-db15-4875-a262-e0b04e484e63',
-            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-                lockId => {
-                    app.debug(`Cache miss for lock ${lockId}`)
-                    return client.lockDetails(app, lockId)
-                        .then(details => {
-                            return details
-                        }, error => {
-                            app.debug(`ERROR: ${error}`)
-                            throw error
-                        })
-                }
-            ),
-            listMethod: client.listLocks,
-            noteFormatter: lockUtils.toNoteFeature,
-            resourceSetFormatter: lockUtils.toResourceSetFeature,
-            resourceSetTemplate: {
-                type: 'ResourceSet',
-                name: 'Locks',
-                description: 'European inland waterway locks',
-                styles: {
-                    default: {
-                        width: 7,
-                        stroke: 'black',
-                        fill: 'yellow',
-                        lineDash: [1, 0]
-                    }
-                },
-                values: {
-                    type: 'FeatureCollection',
-                    features: [
-                    ]
-                }
-            }
-        })
-    }
-
     function setupForBridges (cachingDurationMinutes) {
-        sourceConfig.set('Bridges', {
-            id: 'bdfa494d-c947-438b-8f56-196e87216029',
+        sourceConfig.set('bridge', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 bridgeId => {
                     app.debug(`Cache miss for bridge ${bridgeId}`)
-                    return client.bridgeDetails(app, bridgeId)
+                    return client.bridgeDetails(app, bridgeId).then(details => {
+                        if (details === null) {
+                            // Generic fallback
+                            return client.risDetails(app, id).then(details => {
+                                return details
+                            })
+                        }
+
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+                }
+            ),
+            listMethod: client.listBridges,
+            formatter: handlebarUtilities.bridge
+        })
+    }
+
+    function setupForLocks (cachingDurationMinutes) {
+        sourceConfig.set('lock', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                lockId => {
+                    app.debug(`Cache miss for lock ${lockId}`)
+                    return client.lockDetails(app, lockId).then(details => {
+                        if (details === null) {
+                            // Generic fallback
+                            return client.risDetails(app, id).then(details => {
+                                return details
+                            })
+                        }
+
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })
+                }
+            ),
+            listMethod: client.listLocks,
+            formatter: handlebarUtilities.lock
+        })
+    }
+
+    function setupForBerthsWithoutTranshipment (cachingDurationMinutes) {
+        sourceConfig.set('berths_3', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    app.debug(`Cache miss for berth without transhipment ${id}`)
+                    return client.berthDetails(app, id)
                         .then(details => {
+                            if (details === null) {
+                                // Generic fallback
+                                return client.risDetails(app, id).then(details => {
+                                    return details
+                                })
+                            }
+
                             return details
                         }, error => {
                             app.debug(`ERROR: ${error}`)
@@ -357,27 +297,60 @@ module.exports = function (app) {
                         })
                 }
             ),
-            listMethod: client.listBridges,
-            noteFormatter: bridgeUtils.toNoteFeature,
-            resourceSetFormatter: bridgeUtils.toResourceSetFeature,
-            resourceSetTemplate: {
-                type: 'ResourceSet',
-                name: 'Bridges',
-                description: 'European inland waterway bridges',
-                styles: {
-                    default: {
-                        width: 7,
-                        stroke: 'black',
-                        fill: 'blue',
-                        lineDash: [1, 0]
-                    }
-                },
-                values: {
-                    type: 'FeatureCollection',
-                    features: [
-                    ]
+            listMethod: client.listBerthsWithoutTranshipment,
+            formatter: handlebarUtilities.berthWithoutTranshipment
+        })
+    }
+
+    function setupForBerthsWithTranshipment (cachingDurationMinutes) {
+        sourceConfig.set('berths_1', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    app.debug(`Cache miss for berth with transhipment ${id}`)
+                    return client.berthDetails(app, id)
+                        .then(details => {
+                            if (details === null) {
+                                // Generic fallback
+                                return client.risDetails(app, id).then(details => {
+                                    return details
+                                })
+                            }
+
+                            return details
+                        }, error => {
+                            app.debug(`ERROR: ${error}`)
+                            throw error
+                        })
                 }
-            }
+            ),
+            listMethod: client.listBerthsWithTranshipment,
+            formatter: handlebarUtilities.berthWithTranshipment
+        })
+    }
+
+    function setupForFerryBerths (cachingDurationMinutes) {
+        sourceConfig.set('berths_9', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    app.debug(`Cache miss for ferry berth ${id}`)
+                    return client.berthDetails(app, id)
+                        .then(details => {
+                            if (details === null) {
+                                // Generic fallback
+                                return client.risDetails(app, id).then(details => {
+                                    return details
+                                })
+                            }
+
+                            return details
+                        }, error => {
+                            app.debug(`ERROR: ${error}`)
+                            throw error
+                        })
+                }
+            ),
+            listMethod: client.listFerryBerths,
+            formatter: handlebarUtilities.ferryBerth
         })
     }
 
@@ -385,27 +358,7 @@ module.exports = function (app) {
         sourceConfig.set('Notices to Skippers', {
             id: 'e87a82b8-61b0-4a25-b966-817d0cfe982f',
             detailsCache: noticesToSkippersCache,
-            listMethod: client.listNoticesToSkippers,
-            noteFormatter: noticesToSkippersUtils.toNoteFeature,
-            resourceSetFormatter: noticesToSkippersUtils.toResourceSetFeature,
-            resourceSetTemplate: {
-                type: 'ResourceSet',
-                name: 'Notices to skippers',
-                description: 'European inland waterway bridges',
-                styles: {
-                    default: {
-                        width: 7,
-                        stroke: 'white',
-                        fill: 'red',
-                        lineDash: [1, 0]
-                    }
-                },
-                values: {
-                    type: 'FeatureCollection',
-                    features: [
-                    ]
-                }
-            }
+            listMethod: client.listNoticesToSkippers
         })
     }
 
@@ -416,13 +369,12 @@ module.exports = function (app) {
         objectOperatingTimesCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
                 app.debug(`Cache miss for operating times of ${id}`)
-                return client.operatingTimes(app, id, new Date())
-                    .then(details => {
-                        return details
-                    }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })
+                return client.operatingTimes(app, id, new Date()).then(details => {
+                    return details
+                }, error => {
+                    app.debug(`ERROR: ${error}`)
+                    throw error
+                })
             }
         )
         objectOperatingTimesCacheDailyClearingJob = schedule.scheduleJob({ hour: 0, minute: 0 }, () => {
@@ -440,45 +392,41 @@ module.exports = function (app) {
         noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
                 app.debug(`Cache miss for notice to skippers ${id}`)
-                return client.noticeToSkippers(app, id)
-                    .then(details => {
-                        // The JSON contains a strange XMl string which we need to decode.
-                        // Easiest way is to convert it to XML so that we can explore it as needed.
-                        details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
-                            compact: true,
-                            spaces: 0
-                        })
-                        return details
-                    }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
+                return client.noticeToSkippers(app, id).then(details => {
+                    // The JSON contains a strange XMl string which we need to decode.
+                    // Easiest way is to convert it to XML so that we can explore it as needed.
+                    details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
+                        compact: true,
+                        spaces: 0
                     })
+                    return details
+                }, error => {
+                    app.debug(`ERROR: ${error}`)
+                    throw error
+                })
             }
         )
 
         objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
                 app.debug(`Cache miss for notice to skippers for object ${id}`)
-                return client.noticeToSkippersForObject(app, id, new Date())
-                    .then(details => {
-                        return Promise.all(
-                            details.map(detail => {
-                                return `${detail.headerID}|${detail.sectionId}`
-                            }).map(ntsId => {
-                                // We now go to our usual cache and grab the actual NtS
-                                return noticesToSkippersCache.get(ntsId)
-                            })
-                        )
-                        .then((values) => {
-                            return values
+                return client.noticeToSkippersForObject(app, id, new Date()).then(details => {
+                    return Promise.all(
+                        details.map(detail => {
+                            return `${detail.headerID}|${detail.sectionId}`
+                        }).map(ntsId => {
+                            // We now go to our usual cache and grab the actual NtS
+                            return noticesToSkippersCache.get(ntsId)
                         })
-                        .then((obj) => {
-                            return obj
-                        })
-                    }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
+                    ).then((values) => {
+                        return values
+                    }).then((obj) => {
+                        return obj
                     })
+                }, error => {
+                    app.debug(`ERROR: ${error}`)
+                    throw error
+                })
             }
         )
     }

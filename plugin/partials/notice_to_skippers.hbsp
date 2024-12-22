@@ -1,0 +1,10 @@
+<hr/>
+<p>{{capitalize messageTypeMessage}}, published by {{originator}} on {{dateFormat dateIssue "MMMM Do YYYY, h:mm a"}}</p>
+<p>Valid from {{dateFormat dateStart "MMMM Do YYYY"}} to {{dateFormat dateEnd "MMMM Do YYYY"}}</p> 
+<p><b>{{capitalize title}}</b></p>
+<p>{{xml.RIS_Message.ftm.contents._text}}</p>
+<p>
+{{#each xml.RIS_Message.ftm.communication}}
+    <a href="{{this.number._text}}">{{this.label._text}}</a><br/>
+{{/each}}
+</p>

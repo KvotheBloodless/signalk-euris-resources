@@ -1,0 +1,59 @@
+<hr/>
+<div>
+<p>{{#if entity.routeName}}{{entity.routeName}}{{else}}{{entity.compactLock2.waterwayName}}{{/if}}, km {{divide (toInt entity.compactLock2.hectom) 10}}</p>
+</div>
+<hr/>
+<div>
+    <h4>Dimensions</h4>
+    <table>
+        <tr>
+            <th>Basin</th>
+            <th>Δ</th>
+            <th>L</th>
+            <th>W</th>
+        </tr>
+    {{#eachIndex entity.sublocks}}
+        <tr>
+            <td>📐 {{plus index 1}}</td>
+            <td>{{#if item.clHeight}}{{divide item.clHeight 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if item.mlengthcm}}{{divide item.mlengthcm 100}}{{else}}-{{/if}}m</td>
+            <td>{{#if item.clWidth}}{{divide item.clWidth 100}}{{else}}-{{/if}}m</td>
+        </th>
+    {{/eachIndex}}
+    </table>
+</div>
+{{#if noticesToSkippers}}
+<hr/>
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
+<hr/>
+<div>
+    <h4>Contact {{entity.facility.operator}}</h4>
+    {{#if entity.compactLock2.comcha}}📟 VHF {{entity.compactLock2.comcha}}<br/>{{/if}}{{#if entity.compactLock2.comname}} callsign {{entity.compactLock2.comname}}<br/>{{/if}}
+    {{#each entity.facility.contacts}}
+        {{#if this.mobiles}}📱 <a href="tel:{{this.mobiles}}">{{this.mobiles}}</a><br/>{{/if}}
+        {{#if this.phones}}☎️ <a href="tel:{{this.phones}}">{{this.phones}}</a><br/>{{/if}}
+        {{#if this.faxes}}📠 <a href="tel:{{this.faxes}}">{{this.faxes}}</a><br/>{{/if}}
+        {{#if this.emails}}📧 <a href="mailto:{{this.emails}}">{{this.emails}}</a><br/>{{/if}}
+        {{#if this.urls}}🌐 <a href="{{this.urls}}">{{this.urls}}</a><br/>{{/if}}
+    {{/each}}
+</div>
+{{> footer}}
+{{> disclaimer}}

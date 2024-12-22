@@ -52,17 +52,5 @@ module.exports = {
                 readOnly: true
             }
         }
-    },
-    toResourceSetFeature: function (coordinates, details) {
-        return {
-            geometry: {
-                type: 'Point',
-                coordinates
-            },
-            properties: {
-                name: details.title,
-                description: simpleDescriptionTemplate(details)
-            }
-        }
     }
 }

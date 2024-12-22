@@ -1,0 +1,7 @@
+🕐 {{isoDateToTime dateStart}} ► 🕐 {{isoDateToTime dateEnd}} {{statusMessage}}<br/>
+{{#eachIndex operationEventRemarks}}
+    Remark {{plus index 1}}: {{item.remark}}<br/>
+{{/eachIndex}} 
+{{#eachIndex operationEventTargetDirections}}
+    Direction {{plus index 1}}: {{item.fairwayDirectionCode}}<br/>
+{{/eachIndex}}

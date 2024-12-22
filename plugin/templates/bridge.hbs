@@ -1,0 +1,52 @@
+<hr/>
+<p>{{#if entity.bridgeAreaHeight.route}}{{entity.bridgeAreaHeight.route}}{{else}}{{entity.bridgeAreaHeight.waterwayName}}{{/if}}, km {{divide (toInt entity.bridgeAreaHeight.hectom) 10}}</p>
+<hr/>
+<div>
+    <h4>📐 Dimensions</h4>
+    <table style="width: 100%;text-align:center;">
+        <tr>
+            <th>Opening</th>
+            <th>Type</th>
+            <th>Allowed direction</th>
+            <th>Max. vessel W</th>
+            <th>Height(s)</th>
+        </tr>
+        {{#eachIndex entity.bridgeOpenings}}
+        <tr>
+            <td>{{plus index 1}}</td>
+            <td>{{#if item.type}}{{item.type}}{{else}}-{{/if}}</td>
+            <td>{{#ifCond item.allow_dir '==' 1}}Upstream{{/ifCond}}{{#ifCond item.allow_dir '==' 2}}Downstream{{/ifCond}}{{#ifCond item.allow_dir '==' 4}}Both{{/ifCond}}</td>
+            <td>{{#if item.mwidthcm}}{{divide item.mwidthcm 100}}m{{else}}-{{/if}}</td>
+            <td>
+                {{#if item.mheightcm}}{{divide item.mheightcm 100}}m (maximum allowed)<br/>{{/if}}
+                {{#if item.mheightcmc}}{{divide item.mheightcmc 100}}m (maximum allowed with bridge closed)<br/>{{/if}}
+                {{#if item.cl_heightc}}{{divide item.cl_heightc 100}}m {{#ifCond item.type '==' 'bridge_1'}}(free height){{/ifCond}}{{#ifCond item.type '!=' 'bridge_1'}}(closed free height){{/ifCond}}<br/>{{/if}}
+                {{#if item.cl_height}}{{divide item.cl_height 100}}m (open free height)<br/>{{/if}}
+            </td>
+        </th>
+        {{/eachIndex}}
+    </table>
+</div>
+{{#if noticesToSkippers}}
+<hr/>
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
+{{> footer}}
+{{> disclaimer}}
