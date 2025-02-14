@@ -1,10 +1,10 @@
 <hr/>
 <div>
-    <sub>note: The EuRIS database does not contain detailed information about this object</sub>
+    <sub>note: The EuRIS service does not provide detailed information about this object</sub>
 </div>
 <hr/>
 <div>
-    <p>{{#if entity.routeName}}{{entity.routeName}}, {{/if}}km {{divide (toInt entity.hectom) 10}}</p>
+    <p>{{#if entity.routeName}}{{entity.routeName}}, {{/if}}km {{divide (toInt entity.hectom) 10}}{{#if entity.positionCodeMessage}}, {{entity.positionCodeMessage}}{{/if}}</p>
 </div>
 {{#if noticesToSkippers}}
 <div>

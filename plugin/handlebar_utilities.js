@@ -25,25 +25,14 @@
 const handlebars = require('handlebars')
 const helpersForHandlebars = require('helpers-for-handlebars')
 const fs = require('node:fs')
+const { noticeToSkippers } = require('./euris_client')
 
 const partialsDir = './node_modules/signalk-euris-resources/plugin/partials/'
 
 handlebars.registerPartial('footer', fs.readFileSync(`${partialsDir}/footer.hbsp`, 'utf-8'))
 handlebars.registerPartial('disclaimer', fs.readFileSync(`${partialsDir}/disclaimer.hbsp`, 'utf-8'))
 handlebars.registerPartial('operatingTime', fs.readFileSync(`${partialsDir}/operating_time.hbsp`, 'utf-8'))
-handlebars.registerPartial('noticeToSkippers', 
-    `
-        <p>{{capitalize messageTypeMessage}}, published by {{originator}} on {{dateFormat dateIssue "MMMM Do YYYY, h:mm a"}}</p>
-        <p>Valid from {{dateFormat dateStart "MMMM Do YYYY"}} to {{dateFormat dateEnd "MMMM Do YYYY"}}</p> 
-        <p><b>{{capitalize title}}</b></p>
-        <p>{{xml.RIS_Message.ftm.contents._text}}</p>
-        <p>
-        {{#each xml.RIS_Message.ftm.communication}}
-            <a href="{{this.number._text}}">{{this.label._text}}</a><br/>
-        {{/each}}
-        </p>
-    `
-)
+handlebars.registerPartial('noticeToSkippers', fs.readFileSync(`${partialsDir}/notice_to_skippers.hbsp`, 'utf-8'))
 
 const templatesDir = './node_modules/signalk-euris-resources/plugin/templates/'
 
@@ -53,6 +42,8 @@ const lockTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/lock.hb
 const berthWithoutTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithoutTranshipment.hbs`, 'utf-8'))
 const berthWithTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithTranshipment.hbs`, 'utf-8'))
 const ferryBerthTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ferryBerth.hbs`, 'utf-8'))
+const radionCallPointTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/radioCallPoint.hbs`, 'utf-8'))
+const noticeToSkippersTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/noticeToSkippers.hbs`, 'utf-8'))
 
 module.exports = {
     helpers: function () {
@@ -196,7 +187,7 @@ module.exports = {
             }
         }
     },    
-    bridge: function (entity, operatingTimes, noticesToSkippers) {
+    bridge: function (icon, entity, operatingTimes, noticesToSkippers) {
         return {
             name: entity.bridgeAreaHeight.name,
             description: bridgeTemplate({
@@ -206,11 +197,11 @@ module.exports = {
             }),
             properties: {
                 readOnly: true,
-                skIcon: 'bridge'
+                skIcon: icon
             }
         }
     },
-    lock: function (entity, operatingTimes, noticesToSkippers) {
+    lock: function (icon, entity, operatingTimes, noticesToSkippers) {
         return {
             name: entity.compactLock2.objectName,
             description: lockTemplate({
@@ -220,11 +211,11 @@ module.exports = {
             }),
             properties: {
                 readOnly: true,
-                skIcon: 'lock'
+                skIcon: icon
             }
         }
     },
-    berthWithoutTranshipment: function (entity, operatingTimes, noticesToSkippers) {
+    berthWithoutTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
         return {
             name: entity.compactBerth2.objectname,
             description: berthWithoutTranshipmentTemplate({
@@ -234,11 +225,11 @@ module.exports = {
             }),
             properties: {
                 readOnly: true,
-                skIcon: 'berth'
+                skIcon: icon
             }
         }
     },
-    ferryBerth: function (entity, operatingTimes, noticesToSkippers) {
+    ferryBerth: function (icon, entity, operatingTimes, noticesToSkippers) {
         return {
             name: entity.compactBerth2.objectname,
             description: ferryBerthTemplate({
@@ -248,21 +239,49 @@ module.exports = {
             }),
             properties: {
                 readOnly: true,
-                skIcon: 'berth'
+                skIcon: icon
             }
         }
     },
-    berthWithTranshipment: function (entity, operatingTimes, noticesToSkippers) {
+    berthWithTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
         return {
             name: entity.compactBerth2.objectname,
-            description: berthWithTranshipmentTemplate({
+            description: noticeToSkippersTemplate({
                 entity, 
                 operatingTimes,
                 noticesToSkippers  
             }),
             properties: {
                 readOnly: true,
-                skIcon: 'berth'
+                skIcon: icon
+            }
+        }
+    },
+    radioCallPoint: function (icon, entity, operatingTimes, noticesToSkippers) {
+        return {
+            name: entity.objectName,
+            description: radionCallPointTemplate({
+                entity, 
+                operatingTimes,
+                noticesToSkippers  
+            }),
+            properties: {
+                readOnly: true,
+                skIcon: icon
+            }
+        }
+    },
+    noticeToSkippers: function (icon, entity, _, _) {
+        return {
+            name: entity.title,
+            description: noticeToSkippersTemplate({
+                entity, 
+                _,
+                _  
+            }),
+            properties: {
+                readOnly: true,
+                skIcon: icon
             }
         }
     }

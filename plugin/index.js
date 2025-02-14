@@ -48,23 +48,23 @@ module.exports = function (app) {
         setupObjectOperatingTimesCache(options.cachingDurationMinutes)
         setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
 
-        if (options.includeBridges && false) {
+        if (options.includeBridges) {
             setupForBridges(options.cachingDurationMinutes)
         }
-        if (options.includeLocks && false) {
+        if (options.includeLocks) {
             setupForLocks(options.cachingDurationMinutes)
         }
-        if (options.includeBerthsWithoutTranshipment) {
-            setupForBerthsWithoutTranshipment(options.cachingDurationMinutes)
+        if (options.includePorts) {
+            setupForPorts(options.cachingDurationMinutes)
         }
-        if (options.includeBerthsWithTranshipment) {
-            setupForBerthsWithTranshipment(options.cachingDurationMinutes)
+        if (options.includeDocks) {
+            setupForDocks(options.cachingDurationMinutes)
         }
-        if (options.includeFerryBerths) {
-            setupForFerryBerths(options.cachingDurationMinutes)
-        }
-        if (options.includeNoticesToSkippers && false) {
+        if (options.includeNoticesToSkippers) {
             setupForNoticesToSkippers(options.cachingDurationMinutes)
+        }
+        if (options.includeRadioCalls) {
+            setupForRadioCallPoints(options.cachingDurationMinutes)
         }
 
         registerAsNoteResourcesProvider()
@@ -99,24 +99,24 @@ module.exports = function (app) {
                 title: 'Include locks',
                 default: true
             },
-            includeBerthsWithoutTranshipment: {
+            includePorts: {
                 type: 'boolean',
-                title: 'Include berths without transhipment',
+                title: 'Include ports',
                 default: true
             },
-            includeBerthsWithTranshipment : {
+            includeDocks: {
                 type: 'boolean',
-                title: 'Include berths with transhipment',
-                default: true
-            },
-            includeFerryBerths : {
-                type: 'boolean',
-                title: 'Include ferry berths',
+                title: 'Include docks',
                 default: true
             },
             includeNoticesToSkippers: {
                 type: 'boolean',
                 title: 'Include notices to skippers',
+                default: true
+            },
+            includeRadioCalls: {
+                type: 'boolean',
+                title: 'Include radio call points',
                 default: true
             },
             cachingDurationMinutes: {
@@ -142,9 +142,12 @@ module.exports = function (app) {
 
                             for (const struct of sourceConfig.values()) {
                                 const promise = struct.listMethod(app, bbox[0], bbox[1], bbox[2], bbox[3]).then(entities => {
-                                    app.debug(`ENTITIES ==> ${JSON.stringify(entities)}`)
-
+                                    return entities
+                                }).then(entities => {
                                     return entities.map(entity => {
+
+                                        app.debug(`ENTITY: ${JSON.stringify(entity)}`)
+
                                         return {
                                             id: `${entity.type}${ID_SEPARATOR}${entity.id}`,
                                             name: entity.name,
@@ -152,10 +155,14 @@ module.exports = function (app) {
                                                 longitude: entity.point[0], 
                                                 latitude: entity.point[1]
                                             },
+                                            geometry :{
+                                                type: 'LineString',
+                                                coordinates: [[entity.point[0],entity.point[1]],[entity.point[0] + 0.2,entity.point[1] + 0.2]]  
+                                            },
                                             mimeType: 'text/plain',
                                             properties: {
                                                 readOnly: true,
-                                                skIcon: entity.type
+                                                skIcon: struct.icon
                                             },
                                             timestamp: new Date().toISOString(),
                                             $source: plugin.id
@@ -193,23 +200,28 @@ module.exports = function (app) {
                                         throw new Error(`Could not retrieve entity ${parts[1]}`)
                                     }
 
-                                    app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
+                                    // app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
 
                                     if (Object.hasOwn(values[0], 'unLocode')) {
                                         // This is a fallback RIS object
-                                        return handlebarUtilities.ris(parts[0], values[0], values[1], values[2])
+                                        return handlebarUtilities.ris(config.icon, values[0], values[1], values[2])
                                     }
 
-                                    return config.formatter(values[0], values[1], values[2])
+                                    app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
+
+                                    return config.formatter(config.icon, values[0], values[1], values[2])
                                 }).then(note => {
                                     note.mimeType = 'text/plain',
                                     note.$source = plugin.id
                                     
                                     return note
                                 }).catch((error) => {
-                                    app.debug(`ERROR: ${error}`)
+                                    app.debug(`ERRORAA: ${error}`)
                                     throw error
                                 })
+                            }
+                            else {
+                                app.debug(`WARN: Could not find source config for ${parts[0]}`)
                             }
                         }
                     },
@@ -229,9 +241,9 @@ module.exports = function (app) {
     function setupForBridges (cachingDurationMinutes) {
         sourceConfig.set('bridge', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-                bridgeId => {
-                    app.debug(`Cache miss for bridge ${bridgeId}`)
-                    return client.bridgeDetails(app, bridgeId).then(details => {
+                id => {
+                    app.debug(`Cache miss for bridge ${id}`)
+                    return client.bridgeDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
                             return client.risDetails(app, id).then(details => {
@@ -247,16 +259,17 @@ module.exports = function (app) {
                 }
             ),
             listMethod: client.listBridges,
-            formatter: handlebarUtilities.bridge
+            formatter: handlebarUtilities.bridge,
+            icon: 'bridge'
         })
     }
 
     function setupForLocks (cachingDurationMinutes) {
         sourceConfig.set('lock', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-                lockId => {
-                    app.debug(`Cache miss for lock ${lockId}`)
-                    return client.lockDetails(app, lockId).then(details => {
+                id => {
+                    app.debug(`Cache miss for lock ${id}`)
+                    return client.lockDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
                             return client.risDetails(app, id).then(details => {
@@ -272,16 +285,56 @@ module.exports = function (app) {
                 }
             ),
             listMethod: client.listLocks,
-            formatter: handlebarUtilities.lock
+            formatter: handlebarUtilities.lock,
+            icon: 'lock'
         })
     }
 
-    function setupForBerthsWithoutTranshipment (cachingDurationMinutes) {
-        sourceConfig.set('berths_3', {
+    function setupForPorts (cachingDurationMinutes) {
+        sourceConfig.set('PRTAR', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for berth without transhipment ${id}`)
-                    return client.berthDetails(app, id)
+                    app.debug(`Cache miss for port ${id}`)
+                    return client.risDetails(app, id)
+                }
+            ),
+            listMethod: client.listPorts,
+            formatter: handlebarUtilities.ris,
+            icon: 'marina'
+        })
+    }
+
+    function setupForDocks (cachingDurationMinutes) {
+        sourceConfig.set('BER01', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    app.debug(`Cache miss for dock ${id}`)
+                    return client.dockDetails(app, id).then(details => {
+                        if (details === null) {
+                            // Generic fallback
+                            return client.risDetails(app, id).then(details => {
+                                return details
+                            })
+                        }
+
+                        return details
+                    }, error => {
+                        app.debug(`ERROR: ${error}`)
+                        throw error
+                    })                }
+            ),
+            listMethod: client.listDocks,
+            formatter: handlebarUtilities.berthWithoutTranshipment,
+            icon: 'dock'
+        })
+    }
+
+    function setupForRadioCallPoints (cachingDurationMinutes) {
+        sourceConfig.set('rdocal', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    app.debug(`Cache miss for radio call point ${id}`)
+                    return client.radioCallPointDetails(app, id)
                         .then(details => {
                             if (details === null) {
                                 // Generic fallback
@@ -297,68 +350,18 @@ module.exports = function (app) {
                         })
                 }
             ),
-            listMethod: client.listBerthsWithoutTranshipment,
-            formatter: handlebarUtilities.berthWithoutTranshipment
-        })
-    }
-
-    function setupForBerthsWithTranshipment (cachingDurationMinutes) {
-        sourceConfig.set('berths_1', {
-            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-                id => {
-                    app.debug(`Cache miss for berth with transhipment ${id}`)
-                    return client.berthDetails(app, id)
-                        .then(details => {
-                            if (details === null) {
-                                // Generic fallback
-                                return client.risDetails(app, id).then(details => {
-                                    return details
-                                })
-                            }
-
-                            return details
-                        }, error => {
-                            app.debug(`ERROR: ${error}`)
-                            throw error
-                        })
-                }
-            ),
-            listMethod: client.listBerthsWithTranshipment,
-            formatter: handlebarUtilities.berthWithTranshipment
-        })
-    }
-
-    function setupForFerryBerths (cachingDurationMinutes) {
-        sourceConfig.set('berths_9', {
-            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
-                id => {
-                    app.debug(`Cache miss for ferry berth ${id}`)
-                    return client.berthDetails(app, id)
-                        .then(details => {
-                            if (details === null) {
-                                // Generic fallback
-                                return client.risDetails(app, id).then(details => {
-                                    return details
-                                })
-                            }
-
-                            return details
-                        }, error => {
-                            app.debug(`ERROR: ${error}`)
-                            throw error
-                        })
-                }
-            ),
-            listMethod: client.listFerryBerths,
-            formatter: handlebarUtilities.ferryBerth
+            listMethod: client.listRadioCallPoints,
+            formatter: handlebarUtilities.radioCallPoint,
+            icon: 'radio-call-point'
         })
     }
 
     function setupForNoticesToSkippers (cachingDurationMinutes) {
-        sourceConfig.set('Notices to Skippers', {
-            id: 'e87a82b8-61b0-4a25-b966-817d0cfe982f',
+        sourceConfig.set('notam', {
             detailsCache: noticesToSkippersCache,
-            listMethod: client.listNoticesToSkippers
+            listMethod: client.listNoticesToSkippers,
+            formatter: handlebarUtilities.noticeToSkippers,
+            icon: 'notice-to-mariners'
         })
     }
 

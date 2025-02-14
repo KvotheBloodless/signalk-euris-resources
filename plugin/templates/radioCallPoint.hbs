@@ -1,0 +1,31 @@
+<hr/>
+<div>
+<p>{{#if entity.rtName}}{{entity.rtName}}, {{else}}{{entity.wwName}}, {{/if}}km {{divide (toInt entity.hectom) 10}}</p>
+</div>
+{{#if noticesToSkippers}}
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
+<hr/>
+<div>
+    <h4>Contact {{entity.wwAuthorit}}</h4>
+    {{#if entity.comCha}}📟 VHF {{entity.comCha}}<br/>{{/if}}
+</div>
+{{> footer}}
+{{> disclaimer}}

@@ -23,6 +23,7 @@
  */
 
 const axios = require('axios')
+const { xml2json } = require('xml-js')
 
 const baseUrl = 'https://www.eurisportal.eu'
 const wgs84 = 4326 // WGS 84
@@ -44,11 +45,11 @@ axios.interceptors.response.use(response => {
 })
 
 module.exports = {
-    listBridges: async function (app, x1, y1, x2, y2) {
+    listBridges: function (app, x1, y1, x2, y2) {
         const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -71,24 +72,26 @@ module.exports = {
                         }
                     })
                 }
-            })
-            return response.data.features.map((feature) => {
-                return {
-                    id: feature.attributes.LOCODE,
-                    name: feature.attributes.OBJECTNAME,
-                    point: [feature.geometry.x, feature.geometry.y],
-                    type: 'bridge'
-                }
+            }).then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: feature.attributes.LOCODE,
+                        name: feature.attributes.OBJECTNAME,
+                        point: [feature.geometry.x, feature.geometry.y],
+                        type: 'bridge'
+                    }
+                })
+                
             })
         } catch (error) {
             app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
         }
     },
-    bridgeDetails: async function (app, id) {
+    bridgeDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/BridgeAreas/GetBridgeArea`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -96,8 +99,9 @@ module.exports = {
                 params: {
                     isrs: id
                 }
+            }).then(response => {
+                return response.data
             })
-            return response.data
         } catch (error) {
             app.debug(`ERROR fetching bridge details ${id} - ${error}`)
         }
@@ -106,7 +110,7 @@ module.exports = {
         const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -129,24 +133,25 @@ module.exports = {
                         }
                     })
                 }
-            })
-            return response.data.features.map((feature) => {
-                return {
-                    id: feature.attributes.LOCODE,
-                    name: feature.attributes.OBJECTNAME,
-                    point: [feature.geometry.x, feature.geometry.y],
-                    type: 'lock'
-                }
+            }).then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: feature.attributes.LOCODE,
+                        name: feature.attributes.OBJECTNAME,
+                        point: [feature.geometry.x, feature.geometry.y],
+                        type: 'lock'
+                    }
+                })
             })
         } catch (error) {
             app.debug(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
         }
     },
-    lockDetails: async function (app, id) {
+    lockDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -154,26 +159,46 @@ module.exports = {
                 params: {
                     isrs: id
                 }
+            }).then(response => {
+                return response.data
             })
-            return response.data
         } catch (error) {
             app.debug(`ERROR: fetching lock details ${id} - ${error}`)
         }
     },
-    listBerthsWithoutTranshipment: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'berths_3', x1, y1, x2, y2)
+    listRadioCallPoints: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'RDCL1', x1, y1, x2, y2)
     },
-    listBerthsWithTranshipment: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'berths_1', x1, y1, x2, y2)
+    radioCallPointDetails: function(app, id) {
+        const url = `${baseUrl}/visuris/api/Rdocal/GetRdocal`
+
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    key: id
+                }
+            }).then(response => {
+                return response.data
+            })
+        } catch (error) {
+            app.debug(`ERROR: fetching lock details ${id} - ${error}`)
+        }
     },
-    listFerryBerths: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'berths_9', x1, y1, x2, y2)
-    },
-    berthDetails: async function (app, id) {
+    listPorts: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'PRTAR', x1, y1, x2, y2)
+    }, 
+    listDocks: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'BER01', x1, y1, x2, y2)
+    }, 
+    dockDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -181,17 +206,18 @@ module.exports = {
                 params: {
                     isrs: id
                 }
+            }).then(response => {
+                return response.data
             })
-            return response.data
         } catch (error) {
-            app.debug(`ERROR: fetching berth details ${id} - ${error}`)
+            app.debug(`ERROR: fetching dock details ${id} - ${error}`)
         }
     },
-    risDetails: async function (app, id) {
+    risDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -199,18 +225,18 @@ module.exports = {
                 params: {
                     isrs: id
                 }
+            }).then(response => {
+                return response.data
             })
-            return response.data
         } catch (error) {
             app.debug(`ERROR: fetching RIS index details ${id} - ${error}`)
         }
     },
-// ABOVE THIS LINE, REVIEWED, GOOD
-    operatingTimes: async function (app, id, date) {
+    operatingTimes: function (app, id, date) {
         const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
 
         try {
-            const response = await axios.get(url, {
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -219,17 +245,19 @@ module.exports = {
                     isrs: id,
                     day: date.toISOString().split('T')[0]
                 }
+            }).then(response => {
+                return response.data
             })
-            return response.data
         } catch (error) {
             app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
         }
     },
-    listNoticesToSkippers: async function (app, x1, y1, x2, y2) {
+    listNoticesToSkippers: function (app, x1, y1, x2, y2) {
         const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
 
         try {
-            const response = await axios.get(url, {
+
+            return axios.get(url, {
                 headers: {
                     'User-Agent': userAgent,
                     Accept: 'application/json'
@@ -239,34 +267,46 @@ module.exports = {
                     where: "1=1",
                     returnGeometry: true,
                     returnIdsOnly: false,
-                    outFields: 'NtSHeaderID,NtSSectionID,Title',
+                    outFields: 'NtSNumber,NtSHeaderID,NtSSectionID,Title',
                     spatialRel: 'esriSpatialRelIntersects',
                     geometryType: 'esriGeometryEnvelope',
                     outSR: wgs84,
                     geometry: JSON.stringify({
                         xmin: longitudeToMercator(x1),
-                        ymin: latitudeToMercator(y1),
+                        ymin: latitudeToMercator(y2),
                         xmax: longitudeToMercator(x2),
-                        ymax: latitudeToMercator(y2),
+                        ymax: latitudeToMercator(y1),
                         spatialReference: {
                             wkid: mercator
                         }
                     }),
                     time: `${Date.now()},${Date.now()}`
                 }
-            })
-            return response.data.features.map((feature) => {
-                return {
-                    id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
-                    name: `${feature.attributes.Title}`,
-                    point: [feature.geometry.x, feature.geometry.y],
-                    type: 'notam'
-                }
+            }).then(response => {
+
+                return Promise.all(response.data.features.map((feature) => {
+                    return noticeToSkippersGeometry(app, feature.attributes.NtSNumber).then(geometry => {
+                        return {feature, geometry}
+                    })
+                }))
+            }).then(featuresWithGeometry => {
+
+                return featuresWithGeometry.map((featureWithGeometry) => {
+
+                    return {
+                        id: `${featureWithGeometry.feature.attributes.NtSHeaderID}|${featureWithGeometry.feature.attributes.NtSSectionID}`,
+                        name: `${featureWithGeometry.feature.attributes.Title}`,
+                        point: [featureWithGeometry.feature.geometry.x, featureWithGeometry.feature.geometry.y],
+                        path: featureWithGeometry.geometry,
+                        type: 'notam'
+                    }
+                })
             })
         } catch (error) {
             app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
         }
     },
+// ABOVE THIS LINE, REVIEWED, GOOD
     noticeToSkippersForObject: async function (app, id, date) {
         const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
 
@@ -344,8 +384,11 @@ module.exports = {
     }
 }
 
-async function listRis(app, functionCode, x1, y1, x2, y2) {
-    const url = `${baseUrl}/api/arcgis/rest/services/risindex/0/query`
+async function listRis(app, objectCode, x1, y1, x2, y2) {
+    const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+    const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+    app.debug(`Fetching from RIS index with filter [${$filter}]`)
 
     try {
         const response = await axios.get(url, {
@@ -354,65 +397,61 @@ async function listRis(app, functionCode, x1, y1, x2, y2) {
                 Accept: 'application/json'
             },
             params: {
-                f: 'json',
-                returnGeometry: true,
-                outFields: 'ISRS,OBJECTNAME,FNCTION',
-                spatialRel: 'esriSpatialRelIntersects',
-                geometryType: 'esriGeometryEnvelope',
-                inSR: wgs84,
-                outSR: wgs84,
-                geometry: JSON.stringify({
-                    xmin: longitudeToMercator(x1),
-                    ymin: latitudeToMercator(y1),
-                    xmax: longitudeToMercator(x2),
-                    ymax: latitudeToMercator(y2),
-                    spatialReference: {
-                        wkid: mercator
-                    }
-                }),
-                time: `${Date.now()},${Date.now()}`,
-                where: `FNCTION = '${functionCode}'`
+                $filter
             }
         })
-        return response.data.features.map((feature) => {
+        return response.data.items.map((item) => {
             return {
-                id: feature.attributes.ISRS,
-                name: feature.attributes.OBJECTNAME,
-                point: [feature.geometry.x, feature.geometry.y],
-                type: feature.attributes.FNCTION
+                id: item.isrs,
+                name: item.objectName,
+                point: [item.lon, item.lat],
+                type: objectCode
             }
         })
     } catch (error) {
-        app.debug(`ERROR fetching RIS index (${functionCode}) list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
     }
 }
 
-function degreeToRadians(ang) {
+function noticeToSkippersGeometry(app, id) {
+    const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
 
-    return ang * (Math.PI/180.0)
+    try {
+        return axios.get(url, {
+            headers: {
+                'User-Agent': userAgent,
+                Accept: 'application/json'
+            },
+            params: {
+                f: 'json',
+                where: `NtsNumber IN('${id}')`,
+                returnGeometry: true,
+                spatialRel: 'esriSpatialRelIntersects',
+                outFields: '',
+                outSR: wgs84
+            }
+        }).then(response => {
+
+            return response.data.features.map((feature) => {
+                return {
+                    type: feature.attributes.Tooltip,
+                    geometry: feature.geometry
+                }
+            })
+        })
+    } catch (error) {
+        app.debug(`ERROR fetching NtS geometry ${id} - ${error}`)
+    }
 }
 
+const EARTHRADIUS = 6378137; // Earth radius in meters
+
 function longitudeToMercator(lon) {
-    var r_major = 6378137.000;
-    return r_major * degreeToRadians(lon);
+    // Convert longitude to X coordinate (meters)
+    return lon * (Math.PI / 180) * EARTHRADIUS;
 }
 
 function latitudeToMercator(lat) {
-    if (lat > 89.5)
-        lat = 89.5;
-    if (lat < -89.5)
-        lat = -89.5;
-    var r_major = 6378137.000;
-    var r_minor = 6356752.3142;
-    var temp = r_minor / r_major;
-    var es = 1.0 - (temp * temp);
-    var eccent = Math.sqrt(es);
-    var phi = degreeToRadians(lat);
-    var sinphi = Math.sin(phi);
-    var con = eccent * sinphi;
-    var com = .5 * eccent;
-    con = Math.pow((1.0-con)/(1.0+con), com);
-    var ts = Math.tan(.5 * (Math.PI*0.5 - phi))/con;
-    var y = 0 - r_major * Math.log(ts);
-    return y;
+    // Convert latitude to Y coordinate (meters), with Mercator projection
+    return Math.log(Math.tan((Math.PI / 4) + (lat * Math.PI / 180) / 2)) * EARTHRADIUS;
 }

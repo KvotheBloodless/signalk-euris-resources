@@ -1,6 +1,6 @@
 <hr/>
 <div>
-<p>{{#if entity.routeName}}{{entity.routeName}}{{else}}{{entity.compactLock2.waterwayName}}{{/if}}, km {{divide (toInt entity.compactLock2.hectom) 10}}</p>
+<p>{{#if entity.routeName}}{{entity.routeName}}, {{else}}{{entity.compactLock2.waterwayName}}, {{/if}}km {{divide (toInt entity.compactLock2.hectom) 10}}</p>
 </div>
 <hr/>
 <div>
@@ -16,14 +16,13 @@
         <tr>
             <td>📐 {{plus index 1}}</td>
             <td>{{#if item.clHeight}}{{divide item.clHeight 100}}m{{else}}-{{/if}}</td>
-            <td>{{#if item.mlengthcm}}{{divide item.mlengthcm 100}}{{else}}-{{/if}}m</td>
-            <td>{{#if item.clWidth}}{{divide item.clWidth 100}}{{else}}-{{/if}}m</td>
+            <td>{{#if item.mlengthcm}}{{divide item.mlengthcm 100}}m{{else}}-{{/if}}</td>
+            <td>{{#if item.clWidth}}{{divide item.clWidth 100}}m{{else}}-{{/if}}</td>
         </th>
     {{/eachIndex}}
     </table>
 </div>
 {{#if noticesToSkippers}}
-<hr/>
 <div>
     {{#eachIndex noticesToSkippers}}
         <hr/>
