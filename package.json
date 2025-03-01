@@ -25,7 +25,10 @@
   "dependencies": {
     "@inventivetalent/loading-cache": "^0.7.1",
     "@inventivetalent/time": "^1.0.3",
+    "@turf/line-to-polygon": "^7.2.0",
     "axios": "^1.7.8",
+    "bidirectional-map": "^1.1.1",
+    "bimap": "^0.0.15",
     "handlebars": "^4.7.8",
     "handlebars-dateformat": "^1.1.3",
     "helpers-for-handlebars": "^0.10.11",
@@ -34,10 +37,10 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "eslint": "^9.16.0",
+    "eslint": "^8.57.1",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-n": "^17.14.0",
-    "eslint-plugin-promise": "^7.2.1"
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.6.0"
   }
 }

@@ -1,87 +1,90 @@
 /**
-  * MIT License
-  *
-  * Copyright (c) 2024 Paul Willems <paul.willems@gmail.com>
-  *
-  * Permission is hereby granted, free of charge, to any person obtaining a copy
-  * of this software and associated documentation files (the "Software"), to deal
-  * in the Software without restriction, including without limitation the rights
-  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  * copies of the Software, and to permit persons to whom the Software is
-  * furnished to do so, subject to the following conditions:
-  *
-  * The above copyright notice and this permission notice shall be included in all
-  * copies or substantial portions of the Software.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  * SOFTWARE.
-  */
+ * MIT License
+ *
+ * Copyright (c) 2024 Paul Willems <paul.willems@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 
-const client = require('./euris_client')
-const handlebarUtilities = require('./handlebar_utilities')
-const positionUtils = require('./position_utilities')
-const loadingCache = require('@inventivetalent/loading-cache')
-const time = require('@inventivetalent/time')
-const schedule = require('node-schedule')
-const xml2js =  require("xml-js")
+const client = require('./euris_client');
+const handlebarUtilities = require('./handlebar_utilities');
+const geoUtils = require('./geo_utilities');
+const positionUtils = require('./position_utilities');
+const loadingCache = require('@inventivetalent/loading-cache');
+const time = require('@inventivetalent/time');
+const schedule = require('node-schedule');
+const xml2js = require('xml-js');
+const crypto = require('crypto');
+const BiMap = require('bidirectional-map')
 
 module.exports = function (app) {
-    const ID_SEPARATOR = '@'
+    const ID_SEPARATOR = '@';
 
     const plugin = {
         id: 'signalk-euris-resources',
         name: 'European Inland Waterways Resources',
         description: 'This plugin creates a bridge between SignalK and EuRIS (European River Information Services). It gathers information from EuRIS and makes it available through the SignalK resources API for consumption.'
-    }
+    };
 
-    const sourceConfig = new Map()
+    const sourceConfig = new Map();
 
     plugin.start = function (options) {
+        handlebarUtilities.helpers();
 
-        handlebarUtilities.helpers()
-
-        setupObjectOperatingTimesCache(options.cachingDurationMinutes)
-        setupObjectNoticesToSkippersCache(options.cachingDurationMinutes)
+        setupObjectOperatingTimesCache(options.cachingDurationMinutes);
+        setupNoticesToSkippersCaches(options.cachingDurationMinutes);
 
         if (options.includeBridges) {
-            setupForBridges(options.cachingDurationMinutes)
+            setupForBridges(options.cachingDurationMinutes);
         }
         if (options.includeLocks) {
-            setupForLocks(options.cachingDurationMinutes)
+            setupForLocks(options.cachingDurationMinutes);
         }
         if (options.includePorts) {
-            setupForPorts(options.cachingDurationMinutes)
+            setupForPorts(options.cachingDurationMinutes);
         }
         if (options.includeDocks) {
-            setupForDocks(options.cachingDurationMinutes)
+            setupForDocks(options.cachingDurationMinutes);
         }
         if (options.includeNoticesToSkippers) {
-            setupForNoticesToSkippers(options.cachingDurationMinutes)
+            setupForNoticesToSkippers(options.cachingDurationMinutes);
         }
         if (options.includeRadioCalls) {
-            setupForRadioCallPoints(options.cachingDurationMinutes)
+            setupForRadioCallPoints(options.cachingDurationMinutes);
         }
 
-        registerAsNoteResourcesProvider()
-    }
+        registerAsRegionsResourcesProvider();
+        registerAsNoteResourcesProvider();
+    };
 
     plugin.stop = function () {
         for (const struct of sourceConfig.values()) {
-            struct.detailsCache.end()
+            struct.detailsCache.end();
         }
         if (objectOperatingTimesCache) {
-            objectOperatingTimesCacheDailyClearingJob.cancel()
-            objectOperatingTimesCache.end()
+            objectOperatingTimesCacheDailyClearingJob.cancel();
+            objectOperatingTimesCache.end();
         }
         if (objectNoticesToSkippersCache) {
-            objectNoticesToSkippersCache.end()
+            objectNoticesToSkippersCache.end();
         }
-    }
+    };
 
     plugin.schema = {
         title: plugin.name,
@@ -121,318 +124,401 @@ module.exports = function (app) {
             },
             cachingDurationMinutes: {
                 type: 'number',
-                title: 'How long to cache data from EuRIS in minutes (longer = less data trafic; shorter = more up to date data)',
+                title: 'How long to cache data from EuRIS in minutes (longer = less data traffic; shorter = more up-to-date data)',
                 default: 60
             }
         }
+    };
+
+    function registerAsRegionsResourcesProvider() {
+        try {
+            app.registerResourceProvider({
+                type: 'regions',
+                methods: {
+                    listResources: (query) => {
+                        app.debug(`Incoming request to list region resources - query: ${JSON.stringify(query)}`);
+
+                        return Promise.all(noticesToSkippersGeometryCache.keys().map(key => {
+                            return noticesToSkippersGeometryCache.get(key)
+                        })).then(values => {
+                            return values.flat()
+                        }).then(values => {
+                            const shapes = {};
+
+                            for (const value of values.filter(value => Object.hasOwn(value, 'uuid'))) {
+                                var width = 0.001; // or an array for each line segment [5, 10, 15]
+                                var poly = geoUtils.line2Polygon(value.geometry.paths[0], width);
+
+                                shapes[value.uuid] = {
+                                    name: 'Notice to Mariners',
+                                    description: value.type,
+                                    feature: {
+                                        geometry: {
+                                            type: 'Polygon',
+                                            coordinates: [poly]
+                                        },
+                                        properties: {
+                                            readOnly: true
+                                        }
+                                    },
+                                    timestamp: new Date().toISOString(),
+                                    $source: plugin.id
+                                }
+                            }
+
+                            return shapes
+                        })
+                    },
+                    getResource: (id, property) => {
+                        throw new Error('Not supported!');
+                    },
+                    setResource: (id, value) => {
+                        throw new Error('Not supported!');
+                    },
+                    deleteResource: (id) => {
+                        throw new Error('Not supported!');
+                    }
+                }
+            });
+        } catch (error) {
+            app.debug(`Cannot register as a shape resource provider ${error}`);
+        }
     }
 
-    function registerAsNoteResourcesProvider () {
+    let noticesToSkippersIdToGeometryUuid = new BiMap();
+
+    function registerAsNoteResourcesProvider() {
         try {
             app.registerResourceProvider({
                 type: 'notes',
                 methods: {
                     listResources: (query) => {
-                        app.debug(`Incoming request to list note resources - query: ${JSON.stringify(query)}`)
+                        app.debug(`Incoming request to list note resources - query: ${JSON.stringify(query)}`);
 
                         if (query.position != null && query.distance != null) {
-                            const bbox = positionUtils.positionToBbox(query.position, query.distance)
+                            const bbox = positionUtils.positionToBbox(query.position, query.distance);
 
-                            const promises = []
+                            const promises = [];
 
-                            for (const struct of sourceConfig.values()) {
-                                const promise = struct.listMethod(app, bbox[0], bbox[1], bbox[2], bbox[3]).then(entities => {
-                                    return entities
-                                }).then(entities => {
-                                    return entities.map(entity => {
+                            for (let [key, value] of sourceConfig) {
+                                const promise = value.listMethod(app, bbox[0], bbox[1], bbox[2], bbox[3])
+                                    .then(entities => entities)
+                                    .then(entities => {
+                                        return entities.map(entity => {
+                                            const r = {
+                                                id: `${key}${ID_SEPARATOR}${entity.id}`,
+                                                name: entity.name,
+                                                position: {
+                                                    longitude: entity.point[0],
+                                                    latitude: entity.point[1]
+                                                },
+                                                mimeType: 'text/plain',
+                                                properties: {
+                                                    readOnly: true,
+                                                    skIcon: value.icon
+                                                },
+                                                timestamp: new Date().toISOString(),
+                                                $source: plugin.id
+                                            };
 
-                                        app.debug(`ENTITY: ${JSON.stringify(entity)}`)
+                                            // notams are slightly different in that they can have an associated path
+                                            if (key === 'notam') {
+                                                if (!noticesToSkippersIdToGeometryUuid.has(entity.id)) {
+                                                    noticesToSkippersIdToGeometryUuid.set(entity.id, crypto.randomUUID());
+                                                }
 
-                                        return {
-                                            id: `${entity.type}${ID_SEPARATOR}${entity.id}`,
-                                            name: entity.name,
-                                            position: {
-                                                longitude: entity.point[0], 
-                                                latitude: entity.point[1]
-                                            },
-                                            geometry :{
-                                                type: 'LineString',
-                                                coordinates: [[entity.point[0],entity.point[1]],[entity.point[0] + 0.2,entity.point[1] + 0.2]]  
-                                            },
-                                            mimeType: 'text/plain',
-                                            properties: {
-                                                readOnly: true,
-                                                skIcon: struct.icon
-                                            },
-                                            timestamp: new Date().toISOString(),
-                                            $source: plugin.id
-                                        }
-                                    })
-                                })
+                                                noticesToSkippersGeometryCache.get(entity.extra.ntsNumber).then(paths => {
+                                                    for (const path of paths) {
+                                                        path.uuid = noticesToSkippersIdToGeometryUuid.get(entity.id);
+                                                        break;
+                                                        // We only set the UUID on the first path.
+                                                        // The notes API can only support a note being linked to a single region.
+                                                    }
+                                                    return paths;
+                                                }).then(paths => {
+                                                    if(paths.length) {
+                                                        r.href = `/resources/regions/${noticesToSkippersIdToGeometryUuid.get(entity.id)}`
+                                                    }   
+                                                })
+                                            }
 
-                                promises.push(promise)
+                                            return r;
+                                        });
+                                    });
+
+                                promises.push(promise);
                             }
 
                             return Promise.all(promises).then(promises => {
                                 return promises.flat().reduce((map, obj) => {
-                                    map[obj.id] = obj
-                                    delete obj.id
-                                    return map
-                                }, {})
+                                    map[obj.id] = obj;
+                                    delete obj.id;
+                                    return map;
+                                }, {});
                             }, error => {
-                                app.debug(`ERROR: ${error}`)
-                                throw error
-                            })
+                                app.debug(`ERROR: ${error}`);
+                                throw error;
+                            });
+                        } else if (query.href) {
+                            const noteId = `notam${ID_SEPARATOR}${noticesToSkippersIdToGeometryUuid.getKey(query.href.substring(query.href.lastIndexOf('/') + 1))}`
+
+                            return getNote(noteId).then(note => {
+                                const m = [];
+                                app.debug(`KEY: ${noteId} VALUE: ${JSON.stringify(note)}`);
+                                m[noteId] = note;
+                                app.debug(`MAP: ${JSON.stringify(m)}`);
+                                return m;
+                            });
                         } else {
-                            app.debug(`WARN: Could not use provided query parameters - ${JSON.stringify(query)}`)
-                            throw (new Error('Not supported!'))
+                            app.debug(`WARN: Could not use provided query parameters - ${JSON.stringify(query)}`);
+                            throw new Error('Not supported!');
                         }
                     },
                     getResource: (id, property) => {
-                        app.debug(`Incoming request to get note ${id}`)
+                        app.debug(`Incoming request to get note ${id}`);
 
-                        const parts = id.split(ID_SEPARATOR)
-                        if(parts.length = 2) {
-                            const config = sourceConfig.get(parts[0])
-                            if(config !== undefined) {
-                                return Promise.all([config.detailsCache.get(parts[1]), objectOperatingTimesCache.get(parts[1]), objectNoticesToSkippersCache.get(parts[1])]).then(values => {
-                                    if(values[0] === null) {
-                                        throw new Error(`Could not retrieve entity ${parts[1]}`)
-                                    }
-
-                                    // app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
-
-                                    if (Object.hasOwn(values[0], 'unLocode')) {
-                                        // This is a fallback RIS object
-                                        return handlebarUtilities.ris(config.icon, values[0], values[1], values[2])
-                                    }
-
-                                    app.debug(`ENTITY ==> ${JSON.stringify(values[0])}`)
-
-                                    return config.formatter(config.icon, values[0], values[1], values[2])
-                                }).then(note => {
-                                    note.mimeType = 'text/plain',
-                                    note.$source = plugin.id
-                                    
-                                    return note
-                                }).catch((error) => {
-                                    app.debug(`ERRORAA: ${error}`)
-                                    throw error
-                                })
-                            }
-                            else {
-                                app.debug(`WARN: Could not find source config for ${parts[0]}`)
-                            }
-                        }
+                        return getNote(id);
                     },
                     setResource: (id, value) => {
-                        throw (new Error('Not supported!'))
+                        throw new Error('Not supported!');
                     },
                     deleteResource: (id) => {
-                        throw (new Error('Not supported!'))
+                        throw new Error('Not supported!');
                     }
                 }
-            })
+            });
         } catch (error) {
-            app.debug(`Cannot register as a note resource provider ${error}`)
+            app.debug(`Cannot register as a note resource provider ${error}`);
         }
     }
 
-    function setupForBridges (cachingDurationMinutes) {
+    function getNote(id) {
+        const parts = id.split(ID_SEPARATOR);
+        if (parts.length === 2) {
+            const config = sourceConfig.get(parts[0]);
+            if (config !== undefined) {
+                return Promise.all([
+                    config.detailsCache.get(parts[1]),
+                    objectOperatingTimesCache.get(parts[1]),
+                    objectNoticesToSkippersCache.get(parts[1])
+                ]).then(values => {
+                    if (values[0] === null) {
+                        throw new Error(`Could not retrieve entity ${parts[1]}`);
+                    }
+
+                    if (Object.hasOwn(values[0], 'unLocode')) {
+                        // This is a fallback RIS object
+                        return handlebarUtilities.ris(config.icon, values[0], values[1], values[2]);
+                    }
+
+                    return config.formatter(config.icon, values[0], values[1], values[2]);
+                }).then(note => {
+                    note.mimeType = 'text/plain';
+                    note.$source = plugin.id;
+
+                    return note;
+                }).catch((error) => {
+                    app.debug(`ERROR: ${error}`);
+                    throw error;
+                });
+            } else {
+                app.debug(`WARN: Could not find source config for ${parts[0]}`);
+            }
+        }
+    }
+
+    function setupForBridges(cachingDurationMinutes) {
         sourceConfig.set('bridge', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for bridge ${id}`)
+                    app.debug(`Cache miss for bridge ${id}`);
                     return client.bridgeDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
-                            return client.risDetails(app, id).then(details => {
-                                return details
-                            })
+                            return client.risDetails(app, id).then(details => details);
                         }
 
-                        return details
+                        return details;
                     }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
                 }
             ),
             listMethod: client.listBridges,
             formatter: handlebarUtilities.bridge,
             icon: 'bridge'
-        })
+        });
     }
 
-    function setupForLocks (cachingDurationMinutes) {
+    function setupForLocks(cachingDurationMinutes) {
         sourceConfig.set('lock', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for lock ${id}`)
+                    app.debug(`Cache miss for lock ${id}`);
                     return client.lockDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
-                            return client.risDetails(app, id).then(details => {
-                                return details
-                            })
+                            return client.risDetails(app, id).then(details => details);
                         }
 
-                        return details
+                        return details;
                     }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
                 }
             ),
             listMethod: client.listLocks,
             formatter: handlebarUtilities.lock,
             icon: 'lock'
-        })
+        });
     }
 
-    function setupForPorts (cachingDurationMinutes) {
-        sourceConfig.set('PRTAR', {
+    function setupForPorts(cachingDurationMinutes) {
+        sourceConfig.set('port', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for port ${id}`)
-                    return client.risDetails(app, id)
+                    app.debug(`Cache miss for port ${id}`);
+                    return client.risDetails(app, id);
                 }
             ),
             listMethod: client.listPorts,
             formatter: handlebarUtilities.ris,
             icon: 'marina'
-        })
+        });
     }
 
-    function setupForDocks (cachingDurationMinutes) {
-        sourceConfig.set('BER01', {
+    function setupForDocks(cachingDurationMinutes) {
+        sourceConfig.set('dock', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for dock ${id}`)
+                    app.debug(`Cache miss for dock ${id}`);
                     return client.dockDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
-                            return client.risDetails(app, id).then(details => {
-                                return details
-                            })
+                            return client.risDetails(app, id).then(details => details);
                         }
 
-                        return details
+                        return details;
                     }, error => {
-                        app.debug(`ERROR: ${error}`)
-                        throw error
-                    })                }
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
             ),
             listMethod: client.listDocks,
             formatter: handlebarUtilities.berthWithoutTranshipment,
             icon: 'dock'
-        })
+        });
     }
 
-    function setupForRadioCallPoints (cachingDurationMinutes) {
+    function setupForRadioCallPoints(cachingDurationMinutes) {
         sourceConfig.set('rdocal', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for radio call point ${id}`)
-                    return client.radioCallPointDetails(app, id)
-                        .then(details => {
-                            if (details === null) {
-                                // Generic fallback
-                                return client.risDetails(app, id).then(details => {
-                                    return details
-                                })
-                            }
+                    app.debug(`Cache miss for radio call point ${id}`);
+                    return client.radioCallPointDetails(app, id).then(details => {
+                        if (details === null) {
+                            // Generic fallback
+                            return client.risDetails(app, id).then(details => details);
+                        }
 
-                            return details
-                        }, error => {
-                            app.debug(`ERROR: ${error}`)
-                            throw error
-                        })
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
                 }
             ),
             listMethod: client.listRadioCallPoints,
             formatter: handlebarUtilities.radioCallPoint,
             icon: 'radio-call-point'
-        })
+        });
     }
 
-    function setupForNoticesToSkippers (cachingDurationMinutes) {
+    function setupForNoticesToSkippers(cachingDurationMinutes) {
         sourceConfig.set('notam', {
             detailsCache: noticesToSkippersCache,
             listMethod: client.listNoticesToSkippers,
             formatter: handlebarUtilities.noticeToSkippers,
             icon: 'notice-to-mariners'
-        })
+        });
     }
 
-    let objectOperatingTimesCache
-    let objectOperatingTimesCacheDailyClearingJob
+    let objectOperatingTimesCache;
+    let objectOperatingTimesCacheDailyClearingJob;
 
-    function setupObjectOperatingTimesCache (cachingDurationMinutes) {
+    function setupObjectOperatingTimesCache(cachingDurationMinutes) {
         objectOperatingTimesCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for operating times of ${id}`)
-                return client.operatingTimes(app, id, new Date()).then(details => {
-                    return details
-                }, error => {
-                    app.debug(`ERROR: ${error}`)
-                    throw error
-                })
+                app.debug(`Cache miss for operating times of ${id}`);
+                return client.operatingTimes(app, id, new Date()).then(details => details, error => {
+                    app.debug(`ERROR: ${error}`);
+                    throw error;
+                });
             }
-        )
+        );
         objectOperatingTimesCacheDailyClearingJob = schedule.scheduleJob({ hour: 0, minute: 0 }, () => {
             if (objectOperatingTimesCache) {
-                objectOperatingTimesCache.invalidateAll()
+                objectOperatingTimesCache.invalidateAll();
             }
-        })
+        });
     }
 
-    let noticesToSkippersCache
-    let objectNoticesToSkippersCache
+    let noticesToSkippersGeometryCache;
+    let noticesToSkippersCache;
+    let objectNoticesToSkippersCache;
 
-    function setupObjectNoticesToSkippersCache (cachingDurationMinutes) {
+    function setupNoticesToSkippersCaches(cachingDurationMinutes) {
+        noticesToSkippersGeometryCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+            ntsNumber => {
+                app.debug(`Cache miss for path associated with notice to skippers ${ntsNumber}`);
+                return client.noticeToSkippersGeometry(app, ntsNumber).then(details => details, error => {
+                    app.debug(`ERROR: ${error}`);
+                    throw error;
+                });
+            }
+        );
 
         noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for notice to skippers ${id}`)
+                app.debug(`Cache miss for notice to skippers ${id}`);
                 return client.noticeToSkippers(app, id).then(details => {
-                    // The JSON contains a strange XMl string which we need to decode.
-                    // Easiest way is to convert it to XML so that we can explore it as needed.
+                    // The JSON contains a strange XML string which we need to decode.
+                    // The easiest solution is to convert it to JSON so that we can explore it as needed.
                     details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
                         compact: true,
                         spaces: 0
-                    })
-                    return details
+                    });
+                    return details;
                 }, error => {
-                    app.debug(`ERROR: ${error}`)
-                    throw error
-                })
+                    app.debug(`ERROR: ${error}`);
+                    throw error;
+                }).then(entity => {
+                    app.debug(`Fetched NtS ${id} - ${JSON.stringify(entity)}`);
+                    return entity;
+                });
             }
-        )
+        );
 
         objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for notice to skippers for object ${id}`)
+                app.debug(`Cache miss for notice to skippers for object ${id}`);
                 return client.noticeToSkippersForObject(app, id, new Date()).then(details => {
                     return Promise.all(
-                        details.map(detail => {
-                            return `${detail.headerID}|${detail.sectionId}`
-                        }).map(ntsId => {
+                        details.map(detail => `${detail.headerID}|${detail.sectionId}`).map(ntsId => {
                             // We now go to our usual cache and grab the actual NtS
-                            return noticesToSkippersCache.get(ntsId)
+                            return noticesToSkippersCache.get(ntsId);
                         })
-                    ).then((values) => {
-                        return values
-                    }).then((obj) => {
-                        return obj
-                    })
+                    ).then(values => values).then(obj => obj);
                 }, error => {
-                    app.debug(`ERROR: ${error}`)
-                    throw error
-                })
+                    app.debug(`ERROR: ${error}`);
+                    throw error;
+                });
             }
-        )
+        );
     }
 
-    return plugin
-}
+    return plugin;
+};

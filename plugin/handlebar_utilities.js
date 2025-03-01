@@ -272,6 +272,7 @@ module.exports = {
         }
     },
     noticeToSkippers: function (icon, entity, _, _) {
+
         return {
             name: entity.title,
             description: noticeToSkippersTemplate({

@@ -77,8 +77,7 @@ module.exports = {
                     return {
                         id: feature.attributes.LOCODE,
                         name: feature.attributes.OBJECTNAME,
-                        point: [feature.geometry.x, feature.geometry.y],
-                        type: 'bridge'
+                        point: [feature.geometry.x, feature.geometry.y]
                     }
                 })
                 
@@ -138,8 +137,7 @@ module.exports = {
                     return {
                         id: feature.attributes.LOCODE,
                         name: feature.attributes.OBJECTNAME,
-                        point: [feature.geometry.x, feature.geometry.y],
-                        type: 'lock'
+                        point: [feature.geometry.x, feature.geometry.y]
                     }
                 })
             })
@@ -283,27 +281,48 @@ module.exports = {
                     time: `${Date.now()},${Date.now()}`
                 }
             }).then(response => {
-
-                return Promise.all(response.data.features.map((feature) => {
-                    return noticeToSkippersGeometry(app, feature.attributes.NtSNumber).then(geometry => {
-                        return {feature, geometry}
-                    })
-                }))
-            }).then(featuresWithGeometry => {
-
-                return featuresWithGeometry.map((featureWithGeometry) => {
-
+                return response.data.features.map((feature) => {
                     return {
-                        id: `${featureWithGeometry.feature.attributes.NtSHeaderID}|${featureWithGeometry.feature.attributes.NtSSectionID}`,
-                        name: `${featureWithGeometry.feature.attributes.Title}`,
-                        point: [featureWithGeometry.feature.geometry.x, featureWithGeometry.feature.geometry.y],
-                        path: featureWithGeometry.geometry,
-                        type: 'notam'
+                        id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
+                        name: `${feature.attributes.Title}`,
+                        point: [feature.geometry.x, feature.geometry.y],
+                        extra: {
+                            ntsNumber: feature.attributes.NtSNumber
+                        } 
                     }
                 })
             })
         } catch (error) {
             app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    },
+    noticeToSkippersGeometry: async function (app, id) {
+        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
+    
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    f: 'json',
+                    where: `NtsNumber IN('${id}')`,
+                    returnGeometry: true,
+                    spatialRel: 'esriSpatialRelIntersects',
+                    outFields: '',
+                    outSR: wgs84
+                }
+            }).then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        type: feature.attributes.Tooltip,
+                        geometry: feature.geometry
+                    }
+                })
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching NtS geometry ${id} - ${error}`)
         }
     },
 // ABOVE THIS LINE, REVIEWED, GOOD
@@ -388,7 +407,6 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
     const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-    app.debug(`Fetching from RIS index with filter [${$filter}]`)
 
     try {
         const response = await axios.get(url, {
@@ -404,8 +422,7 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
             return {
                 id: item.isrs,
                 name: item.objectName,
-                point: [item.lon, item.lat],
-                type: objectCode
+                point: [item.lon, item.lat]
             }
         })
     } catch (error) {
@@ -413,36 +430,6 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
     }
 }
 
-function noticeToSkippersGeometry(app, id) {
-    const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
-
-    try {
-        return axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                f: 'json',
-                where: `NtsNumber IN('${id}')`,
-                returnGeometry: true,
-                spatialRel: 'esriSpatialRelIntersects',
-                outFields: '',
-                outSR: wgs84
-            }
-        }).then(response => {
-
-            return response.data.features.map((feature) => {
-                return {
-                    type: feature.attributes.Tooltip,
-                    geometry: feature.geometry
-                }
-            })
-        })
-    } catch (error) {
-        app.debug(`ERROR fetching NtS geometry ${id} - ${error}`)
-    }
-}
 
 const EARTHRADIUS = 6378137; // Earth radius in meters
 
