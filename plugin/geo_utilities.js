@@ -24,12 +24,10 @@
 
 module.exports = {
     line2Polygon: function (points, thickness) {
-        //Duplicated points break the algorithm. Remove them.
-        points = sanitise(points)
 
         //Convert points into json notation
         var arr = []
-        for (var i=0; i<points.length; i++){
+        for (var i = 0; i < points.length; i++) {
             var pt = points[i];
             arr.push({
                 x: pt[0],
@@ -39,14 +37,14 @@ module.exports = {
         points = arr
 
         //Convert thickness into an array as needed
-        if (!isArray(thickness)){
+        if (!isArray(thickness)) {
             var t = thickness
             thickness = []
-            for (var i=0; i<points.length; i++){
+            for (var i = 0; i < points.length; i++) {
                 thickness.push(t)
             }
         }
- 
+
         var
             off, off2,
             poly = [],
@@ -54,20 +52,20 @@ module.exports = {
             prevA, prevB,
             interA, interB,
             p0a, p1a, p0b, p1b
- 
+
         for (var i = 0, il = points.length - 1; i < il; i++) {
             isFirst = !i
             isLast = (i === points.length - 2)
 
-            off = getOffsets(points[i], points[i+1], thickness[i])
-            off2 = getOffsets(points[i], points[i+1], thickness[i+1])
- 
-            p0a = { x:points[i].x + off.x, y:points[i].y + off.y }
-            p1a = { x:points[i+1].x + off2.x, y:points[i+1].y + off2.y }
- 
-            p0b = { x:points[i].x - off.x, y:points[i].y - off.y }
-            p1b = { x:points[i+1].x - off2.x, y:points[i+1].y - off2.y }
- 
+            off = getOffsets(points[i], points[i + 1], thickness[i])
+            off2 = getOffsets(points[i], points[i + 1], thickness[i + 1])
+
+            p0a = { x: points[i].x + off.x, y: points[i].y + off.y }
+            p1a = { x: points[i + 1].x + off2.x, y: points[i + 1].y + off2.y }
+
+            p0b = { x: points[i].x - off.x, y: points[i].y - off.y }
+            p1b = { x: points[i + 1].x - off2.x, y: points[i + 1].y - off2.y }
+
             if (!isFirst) {
                 interA = getIntersection(prevA[0], prevA[1], p0a, p1a)
                 if (interA) {
@@ -78,40 +76,42 @@ module.exports = {
                     poly.push(interB)
                 }
             }
- 
+
             if (isFirst) {
                 poly.unshift(p0a)
                 poly.push(p0b)
             }
- 
+
             if (isLast) {
                 poly.unshift(p1a)
                 poly.push(p1b)
             }
- 
+
             if (!isLast) {
                 prevA = [p0a, p1a]
                 prevB = [p0b, p1b]
             }
         }
- 
- 
-         for (var i=0; i<poly.length; i++){
-             var pt = poly[i]
-             poly[i] = [pt.x, pt.y]
-         }
-         
-         poly.push(poly[0])
- 
-         return poly
+
+
+        for (var i = 0; i < poly.length; i++) {
+            var pt = poly[i]
+            poly[i] = [pt.x, pt.y]
+        }
+
+        poly.push(poly[0])
+
+        // There are a few situations that break the algorithm and cause it to output NaN points.
+        // This is an easy fix to this.
+        return sanitiseOuput(poly)
     }
 }
 
-function sanitise(points) {
+function sanitiseOuput(points) {
     let cleaned = []
-    cleaned.push(points[0])
-    for (let i = 1; i < points.length; i++) {
-        if(points[i][0] != cleaned[cleaned.length - 1][0] || points[i][1] != cleaned[cleaned.length - 1][1]) {
+
+    for (let i = 0; i < points.length; i++) {
+        if (!isNaN(points[i][0]) && !isNaN(points[i][1])) {
             cleaned.push(points[i])
         }
     }
@@ -124,10 +124,10 @@ function getOffsets(a, b, thickness) {
         dy = b.y - a.y,
         len = Math.sqrt(dx * dx + dy * dy),
         scale = thickness / (2 * len)
-    
+
     return {
         x: -scale * dy,
-        y:  scale * dx
+        y: scale * dx
     }
 }
 
@@ -138,7 +138,7 @@ function getIntersection(a1, b1, a2, b2) {
         k2 = (b2.y - a2.y) / (b2.x - a2.x)
 
     // if the directional constants are equal, the lines are parallel
-    if (Math.abs(k1 - k2)<0.00001) {
+    if (Math.abs(k1 - k2) < 0.00001) {
         return
     }
 
@@ -152,9 +152,9 @@ function getIntersection(a1, b1, a2, b2) {
     // use y = k * x + m to get y coordinate
     var y = k1 * x + m1
 
-    return { x:x, y:y }
+    return { x: x, y: y }
 }
 
-function isArray(obj){
-    return (Object.prototype.toString.call(obj)==='[object Array]');
+function isArray(obj) {
+    return (Object.prototype.toString.call(obj) === '[object Array]');
 }
