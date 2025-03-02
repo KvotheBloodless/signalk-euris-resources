@@ -70,7 +70,7 @@ module.exports = function (app) {
         }
 
         registerAsRegionsResourcesProvider();
-        registerAsNoteResourcesProvider();
+        registerAsNoteResourcesProvider(options.agressivePreload);
     };
 
     plugin.stop = function () {
@@ -126,6 +126,12 @@ module.exports = function (app) {
                 type: 'number',
                 title: 'How long to cache data from EuRIS in minutes (longer = less data traffic; shorter = more up-to-date data)',
                 default: 60
+            },
+            agressivePreload: {
+                type: 'boolean',
+                title: 'Agressive pre-load',
+                description: 'Optionally pre-load details for the resources. Selecting this will significantly increase data transfer and memory usage, but will also provide a better user experience.',
+                default: false
             }
         }
     };
@@ -187,7 +193,7 @@ module.exports = function (app) {
 
     let noticesToSkippersIdToGeometryUuid = new BiMap();
 
-    function registerAsNoteResourcesProvider() {
+    function registerAsNoteResourcesProvider(agressivePreload) {
         try {
             app.registerResourceProvider({
                 type: 'notes',
@@ -220,6 +226,12 @@ module.exports = function (app) {
                                                 timestamp: new Date().toISOString(),
                                                 $source: plugin.id
                                             };
+
+                                            if(agressivePreload) {
+                                                value.detailsCache.get(entity.id)
+                                                objectOperatingTimesCache.get(entity.id)
+                                                objectNoticesToSkippersCache.get(entity.id)
+                                            }
 
                                             // notams are slightly different in that they can have an associated path
                                             if (key === 'notam') {
