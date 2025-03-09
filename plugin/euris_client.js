@@ -165,7 +165,32 @@ module.exports = {
         }
     },
     listRadioCallPoints: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'RDCL1', x1, y1, x2, y2)
+        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+        const $filter = `function eq 'RDOCAL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+    
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    $filter
+                }
+            }).then(response => {
+                return response.data.items.map((item) => {
+                    return {
+                        id: item.isrs,
+                        name: item.objectName,
+                        point: [item.lon, item.lat]
+                    }
+                })
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    
     },
     radioCallPointDetails: function(app, id) {
         const url = `${baseUrl}/visuris/api/Rdocal/GetRdocal`
@@ -191,7 +216,43 @@ module.exports = {
     }, 
     listDocks: function (app, x1, y1, x2, y2) {
         return listRis(app, 'BER01', x1, y1, x2, y2)
+    },     
+    listStructures: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'EXCNS', x1, y1, x2, y2)
     }, 
+    listFuel: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'BU001', x1, y1, x2, y2)
+    }, 
+    listTurningBasins: function (app, x1, y1, x2, y2) {
+        return listRis(app, 'TRNBS', x1, y1, x2, y2)
+    }, 
+    listTunnels: function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+        const $filter = `function eq 'TUNNEL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+        
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    $filter
+                }
+            }).then(response => {
+                return response.data.items.map((item) => {
+                    return {
+                        id: item.isrs,
+                        name: item.objectName,
+                        point: [item.lon, item.lat]
+                    }
+                })
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    },
     dockDetails: function (app, id) {
         const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
 
@@ -325,7 +386,6 @@ module.exports = {
             app.debug(`ERROR fetching NtS geometry ${id} - ${error}`)
         }
     },
-// ABOVE THIS LINE, REVIEWED, GOOD
     noticeToSkippersForObject: async function (app, id, date) {
         const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
 
@@ -361,45 +421,6 @@ module.exports = {
         } catch (error) {
             app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
         }
-    },
-    listJunctions: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'junction', x1, y1, x2, y2)
-    }, 
-    listTerminals: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'termnl', x1, y1, x2, y2)
-    },  
-    listBuiltUpAreas: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'BUAARE', x1, y1, x2, y2)
-    },    
-    listDistanceMarkers: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'dismar', x1, y1, x2, y2)
-    },    
-    listRadioCallingPoints: function (app, x1, y1, x2, y2) {
-        return listRisapp, ('rdocal', x1, y1, x2, y2)
-    },    
-    listFuelpumps: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'bunsta', x1, y1, x2, y2)
-    },
-    listHarbours: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'hrbare', x1, y1, x2, y2)
-    },
-    listTranshipmentBerths: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'berths_1', x1, y1, x2, y2)
-    },
-    listPassengerBerths: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'berths_9', x1, y1, x2, y2)
-    },
-    listAnchorageBerths: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'achbrt', x1, y1, x2, y2)
-    },
-    listPontoons: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'ponton', x1, y1, x2, y2)
-    },
-    listTurningBasins: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'trnbsn', x1, y1, x2, y2)
-    },
-    listWaterwayGuages: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'wtwgag', x1, y1, x2, y2)
     }
 }
 
@@ -407,7 +428,7 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
     const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-
+    
     try {
         const response = await axios.get(url, {
             headers: {
@@ -419,6 +440,8 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
             }
         })
         return response.data.items.map((item) => {
+            app.debug(`${JSON.stringify(item)}`);
+
             return {
                 id: item.isrs,
                 name: item.objectName,

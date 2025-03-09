@@ -53,6 +53,18 @@ module.exports = function (app) {
         if (options.includeBridges) {
             setupForBridges(options.cachingDurationMinutes);
         }
+        if (options.includeStructures) {
+            setupForStructures(options.cachingDurationMinutes);
+        }
+        if (options.includeFuel) {
+            setupForFuel(options.cachingDurationMinutes);
+        }
+        if (options.includeTurningBasins) {
+            setupForTurningBasins(options.cachingDurationMinutes);
+        }
+        if (options.includeTunnels) {
+            setupForTunnels(options.cachingDurationMinutes);
+        }
         if (options.includeLocks) {
             setupForLocks(options.cachingDurationMinutes);
         }
@@ -97,6 +109,26 @@ module.exports = function (app) {
                 title: 'Include bridges',
                 default: true
             },
+            includeStructures: {
+                type: 'boolean',
+                title: 'Include signinficant structures',
+                default: true
+            },
+            includeTurningBasins: {
+                type: 'boolean',
+                title: 'Include turning basins',
+                default: true
+            },
+            includeFuel: {
+                type: 'boolean',
+                title: 'Include fuel',
+                default: true
+            },
+            includeTunnels: {
+                type: 'boolean',
+                title: 'Include tunnels',
+                default: true
+            },
             includeLocks: {
                 type: 'boolean',
                 title: 'Include locks',
@@ -124,7 +156,8 @@ module.exports = function (app) {
             },
             cachingDurationMinutes: {
                 type: 'number',
-                title: 'How long to cache data from EuRIS in minutes (longer = less data traffic; shorter = more up-to-date data)',
+                title: 'How long to cache data from EuRIS in minutes',
+                description: 'longer = less data traffic; shorter = more up-to-date data',
                 default: 60
             },
             agressivePreload: {
@@ -152,11 +185,11 @@ module.exports = function (app) {
                             const shapes = {};
 
                             for (const value of values.filter(value => Object.hasOwn(value, 'uuid'))) {
-                                var width = 0.001; // or an array for each line segment [5, 10, 15]
+                                var width = 0.001;
                                 var poly = geoUtils.line2Polygon(value.geometry.paths[0], width);
 
                                 shapes[value.uuid] = {
-                                    name: 'Notice to Mariners',
+                                    name: 'Notice to Skippers',
                                     description: value.type,
                                     feature: {
                                         geometry: {
@@ -164,6 +197,7 @@ module.exports = function (app) {
                                             coordinates: [poly]
                                         },
                                         properties: {
+                                            skIcon: 'notice-to-mariners',
                                             readOnly: true
                                         }
                                     },
@@ -191,7 +225,7 @@ module.exports = function (app) {
         }
     }
 
-    let noticesToSkippersIdToGeometryUuid = new BiMap();
+    let entityIdToGeometryUuid = new BiMap();
 
     function registerAsNoteResourcesProvider(agressivePreload) {
         try {
@@ -207,9 +241,13 @@ module.exports = function (app) {
                             const promises = [];
 
                             for (let [key, value] of sourceConfig) {
+                                app.debug(`Fetching available ${key} list`);
+
                                 const promise = value.listMethod(app, bbox[0], bbox[1], bbox[2], bbox[3])
                                     .then(entities => entities)
                                     .then(entities => {
+                                        app.debug(`Found ${entities.length} ${key} entity(ies)`);
+
                                         return entities.map(entity => {
                                             const r = {
                                                 id: `${key}${ID_SEPARATOR}${entity.id}`,
@@ -235,13 +273,13 @@ module.exports = function (app) {
 
                                             // notams are slightly different in that they can have an associated path
                                             if (key === 'notam') {
-                                                if (!noticesToSkippersIdToGeometryUuid.has(entity.id)) {
-                                                    noticesToSkippersIdToGeometryUuid.set(entity.id, crypto.randomUUID());
+                                                if (!entityIdToGeometryUuid.has(entity.id)) {
+                                                    entityIdToGeometryUuid.set(entity.id, crypto.randomUUID());
                                                 }
 
                                                 noticesToSkippersGeometryCache.get(entity.extra.ntsNumber).then(paths => {
                                                     for (const path of paths) {
-                                                        path.uuid = noticesToSkippersIdToGeometryUuid.get(entity.id);
+                                                        path.uuid = entityIdToGeometryUuid.get(entity.id);
                                                         break;
                                                         // We only set the UUID on the first path.
                                                         // The notes API can only support a note being linked to a single region.
@@ -249,7 +287,7 @@ module.exports = function (app) {
                                                     return paths;
                                                 }).then(paths => {
                                                     if(paths.length) {
-                                                        r.href = `/resources/regions/${noticesToSkippersIdToGeometryUuid.get(entity.id)}`
+                                                        r.href = `/resources/regions/${entityIdToGeometryUuid.get(entity.id)}`
                                                     }   
                                                 })
                                             }
@@ -272,7 +310,7 @@ module.exports = function (app) {
                                 throw error;
                             });
                         } else if (query.href) {
-                            const noteId = `notam${ID_SEPARATOR}${noticesToSkippersIdToGeometryUuid.getKey(query.href.substring(query.href.lastIndexOf('/') + 1))}`
+                            const noteId = `notam${ID_SEPARATOR}${entityIdToGeometryUuid.getKey(query.href.substring(query.href.lastIndexOf('/') + 1))}`
 
                             return getNote(noteId).then(note => {
                                 const m = [];
@@ -343,7 +381,6 @@ module.exports = function (app) {
         sourceConfig.set('bridge', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for bridge ${id}`);
                     return client.bridgeDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
@@ -359,7 +396,84 @@ module.exports = function (app) {
             ),
             listMethod: client.listBridges,
             formatter: handlebarUtilities.bridge,
-            icon: 'bridge'
+            icon: 'bridge',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForStructures(cachingDurationMinutes) {
+        sourceConfig.set('structure', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return client.risDetails(app, id).then(details => {
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
+            ),
+            listMethod: client.listStructures,
+            formatter: handlebarUtilities.ris,
+            icon: 'structure',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForFuel(cachingDurationMinutes) {
+        sourceConfig.set('fuel', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return client.risDetails(app, id).then(details => {
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
+            ),
+            listMethod: client.listFuel,
+            formatter: handlebarUtilities.ris,
+            icon: 'fuel',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForTurningBasins(cachingDurationMinutes) {
+        sourceConfig.set('turningBasin', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return client.risDetails(app, id).then(details => {
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
+            ),
+            listMethod: client.listTurningBasins,
+            formatter: handlebarUtilities.ris,
+            icon: 'turning-basin',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForTunnels(cachingDurationMinutes) {
+        sourceConfig.set('tunnel', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return client.risDetails(app, id).then(details => {
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
+            ),
+            listMethod: client.listTunnels,
+            formatter: handlebarUtilities.ris,
+            icon: 'tunnel',
+            canHaveGeometry: false
         });
     }
 
@@ -367,7 +481,6 @@ module.exports = function (app) {
         sourceConfig.set('lock', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for lock ${id}`);
                     return client.lockDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
@@ -383,7 +496,8 @@ module.exports = function (app) {
             ),
             listMethod: client.listLocks,
             formatter: handlebarUtilities.lock,
-            icon: 'lock'
+            icon: 'lock',
+            canHaveGeometry: false
         });
     }
 
@@ -391,13 +505,13 @@ module.exports = function (app) {
         sourceConfig.set('port', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for port ${id}`);
                     return client.risDetails(app, id);
                 }
             ),
             listMethod: client.listPorts,
             formatter: handlebarUtilities.ris,
-            icon: 'marina'
+            icon: 'marina',
+            canHaveGeometry: false
         });
     }
 
@@ -405,7 +519,6 @@ module.exports = function (app) {
         sourceConfig.set('dock', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for dock ${id}`);
                     return client.dockDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
@@ -421,7 +534,8 @@ module.exports = function (app) {
             ),
             listMethod: client.listDocks,
             formatter: handlebarUtilities.berthWithoutTranshipment,
-            icon: 'dock'
+            icon: 'dock',
+            canHaveGeometry: false
         });
     }
 
@@ -429,7 +543,6 @@ module.exports = function (app) {
         sourceConfig.set('rdocal', {
             detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
                 id => {
-                    app.debug(`Cache miss for radio call point ${id}`);
                     return client.radioCallPointDetails(app, id).then(details => {
                         if (details === null) {
                             // Generic fallback
@@ -445,7 +558,8 @@ module.exports = function (app) {
             ),
             listMethod: client.listRadioCallPoints,
             formatter: handlebarUtilities.radioCallPoint,
-            icon: 'radio-call-point'
+            icon: 'radio-call-point',
+            canHaveGeometry: false
         });
     }
 
@@ -454,7 +568,8 @@ module.exports = function (app) {
             detailsCache: noticesToSkippersCache,
             listMethod: client.listNoticesToSkippers,
             formatter: handlebarUtilities.noticeToSkippers,
-            icon: 'notice-to-mariners'
+            icon: 'notice-to-mariners',
+            canHaveGeometry: true
         });
     }
 
@@ -464,7 +579,6 @@ module.exports = function (app) {
     function setupObjectOperatingTimesCache(cachingDurationMinutes) {
         objectOperatingTimesCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for operating times of ${id}`);
                 return client.operatingTimes(app, id, new Date()).then(details => details, error => {
                     app.debug(`ERROR: ${error}`);
                     throw error;
@@ -485,7 +599,6 @@ module.exports = function (app) {
     function setupNoticesToSkippersCaches(cachingDurationMinutes) {
         noticesToSkippersGeometryCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             ntsNumber => {
-                app.debug(`Cache miss for path associated with notice to skippers ${ntsNumber}`);
                 return client.noticeToSkippersGeometry(app, ntsNumber).then(details => details, error => {
                     app.debug(`ERROR: ${error}`);
                     throw error;
@@ -495,7 +608,6 @@ module.exports = function (app) {
 
         noticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for notice to skippers ${id}`);
                 return client.noticeToSkippers(app, id).then(details => {
                     // The JSON contains a strange XML string which we need to decode.
                     // The easiest solution is to convert it to JSON so that we can explore it as needed.
@@ -516,7 +628,6 @@ module.exports = function (app) {
 
         objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                app.debug(`Cache miss for notice to skippers for object ${id}`);
                 return client.noticeToSkippersForObject(app, id, new Date()).then(details => {
                     return Promise.all(
                         details.map(detail => `${detail.headerID}|${detail.sectionId}`).map(ntsId => {
