@@ -45,258 +45,256 @@ const radionCallPointTemplate = handlebars.compile(fs.readFileSync(`${templatesD
 const noticeToSkippersTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/noticeToSkippers.hbs`, 'utf-8'))
 
 module.exports = {
-    helpers: function () {
-        
-        helpersForHandlebars.string()
-        helpersForHandlebars.number()
-        helpersForHandlebars.math()
-        helpersForHandlebars.array()
-        helpersForHandlebars.comparison()
+  helpers: function () {
+    helpersForHandlebars.string()
+    helpersForHandlebars.number()
+    helpersForHandlebars.math()
+    helpersForHandlebars.array()
+    helpersForHandlebars.comparison()
 
-        handlebars.registerHelper('dateFormat', require('handlebars-dateformat'))
+    handlebars.registerHelper('dateFormat', require('handlebars-dateformat'))
 
-        handlebars.registerHelper('deltas', function (arr, prop) {
-            return arr.map((heightString) => `${(parseInt(heightString) / 100).toFixed(1)}m`).join(prop)
-        })
-        
-        handlebars.registerHelper('berthCategory', function (categories) {
-            return categories.split(',').map(s => {
-                switch(s) {
-                    case '1': 
-                        return 'Loading'
-                    case '2': 
-                        return 'Unloading'
-                    case '3': 
-                        return 'Overnight accomodation'
-                    case '4': 
-                        return 'Push tow anchorage'                    
-                    case '5': 
-                        return 'Anchorage for other vessels than push tows'                    
-                    case '6': 
-                        return 'Fleeting area/waiting area'                    
-                    case '7': 
-                        return 'First class landing'                    
-                    case '8': 
-                        return 'Second class landing'                    
-                    case '9': 
-                        return 'Passenger vessels'                    
-                    default: 
-                        return ''
-                }
-            }).join(', ')
-        })
+    handlebars.registerHelper('deltas', function (arr, prop) {
+      return arr.map((heightString) => `${(parseInt(heightString) / 100).toFixed(1)}m`).join(prop)
+    })
 
-        handlebars.registerHelper('berthAllowedCones', function (status) {
-            return status.split(',').map(s => {
-                switch(s) {
-                    case '1': 
-                        return 'One blue light / cone'
-                    case '2': 
-                        return 'Two blue lights / cones'
-                    case '3': 
-                        return 'Three blue lights / cones'
-                    case '4': 
-                        return 'No blue light / cone'                    
-                    case '5': 
-                        return 'One red light / red cone top down'                    
-                    default: 
-                        return ''
-                }
-            }).join(', ')
-        })
+    handlebars.registerHelper('berthCategory', function (categories) {
+      return categories.split(',').map(s => {
+        switch (s) {
+          case '1':
+            return 'Loading'
+          case '2':
+            return 'Unloading'
+          case '3':
+            return 'Overnight accomodation'
+          case '4':
+            return 'Push tow anchorage'
+          case '5':
+            return 'Anchorage for other vessels than push tows'
+          case '6':
+            return 'Fleeting area/waiting area'
+          case '7':
+            return 'First class landing'
+          case '8':
+            return 'Second class landing'
+          case '9':
+            return 'Passenger vessels'
+          default:
+            return ''
+        }
+      }).join(', ')
+    })
 
-        handlebars.registerHelper('berthStatus', function (status) {
-            return status.split(',').map(s => {
-                switch(s) {
-                    case '3': 
-                        return 'Recommended'
-                    case '8': 
-                        return 'Private'
-                    case '12': 
-                        return 'Illuminated'
-                    case '14': 
-                        return 'Public'                    
-                    case '16': 
-                        return 'Watched'                    
-                    case '17': 
-                        return 'Un-watched'
-                    default: 
-                        return ''
-                }
-            }).join(', ')
-        })
+    handlebars.registerHelper('berthAllowedCones', function (status) {
+      return status.split(',').map(s => {
+        switch (s) {
+          case '1':
+            return 'One blue light / cone'
+          case '2':
+            return 'Two blue lights / cones'
+          case '3':
+            return 'Three blue lights / cones'
+          case '4':
+            return 'No blue light / cone'
+          case '5':
+            return 'One red light / red cone top down'
+          default:
+            return ''
+        }
+      }).join(', ')
+    })
 
-        handlebars.registerHelper('berthBank', function (bank) {
-            switch(bank) {
-                case 'LB': 
-                    return 'Left bank'
-                case 'RB': 
-                    return 'Right bank'
-                default: 
-                    return ''
-            }
-        })
+    handlebars.registerHelper('berthStatus', function (status) {
+      return status.split(',').map(s => {
+        switch (s) {
+          case '3':
+            return 'Recommended'
+          case '8':
+            return 'Private'
+          case '12':
+            return 'Illuminated'
+          case '14':
+            return 'Public'
+          case '16':
+            return 'Watched'
+          case '17':
+            return 'Un-watched'
+          default:
+            return ''
+        }
+      }).join(', ')
+    })
 
-        handlebars.registerHelper('isoDateToTime', function (dateString) {
-            return new Date(dateString).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
-        })
+    handlebars.registerHelper('berthBank', function (bank) {
+      switch (bank) {
+        case 'LB':
+          return 'Left bank'
+        case 'RB':
+          return 'Right bank'
+        default:
+          return ''
+      }
+    })
 
-        handlebars.registerHelper('toInt', function(str) {
-            return parseInt(str,10)
-        })
+    handlebars.registerHelper('isoDateToTime', function (dateString) {
+      return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    })
 
-        handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
-            switch (operator) {
-                case '==':
-                    return (v1 == v2) ? options.fn(this) : options.inverse(this);
-                case '===':
-                    return (v1 === v2) ? options.fn(this) : options.inverse(this);
-                case '!=':
-                    return (v1 != v2) ? options.fn(this) : options.inverse(this);
-                case '!==':
-                    return (v1 !== v2) ? options.fn(this) : options.inverse(this);
-                case '<':
-                    return (v1 < v2) ? options.fn(this) : options.inverse(this);
-                case '<=':
-                    return (v1 <= v2) ? options.fn(this) : options.inverse(this);
-                case '>':
-                    return (v1 > v2) ? options.fn(this) : options.inverse(this);
-                case '>=':
-                    return (v1 >= v2) ? options.fn(this) : options.inverse(this);
-                case '&&':
-                    return (v1 && v2) ? options.fn(this) : options.inverse(this);
-                case '||':
-                    return (v1 || v2) ? options.fn(this) : options.inverse(this);
-                default:
-                    return options.inverse(this);
-            }
-        })
-    },
-    ris: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.objectName,
-            description: risTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },  
-    guage: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: `${entity[0].parameterName} - ${entity[0].parameterName}`,
-            description: guageTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },    
-    bridge: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.bridgeAreaHeight.name,
-            description: bridgeTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    lock: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.compactLock2.objectName,
-            description: lockTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    berthWithoutTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.compactBerth2.objectname,
-            description: berthWithoutTranshipmentTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    ferryBerth: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.compactBerth2.objectname,
-            description: ferryBerthTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    berthWithTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.compactBerth2.objectname,
-            description: noticeToSkippersTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    radioCallPoint: function (icon, entity, operatingTimes, noticesToSkippers) {
-        return {
-            name: entity.objectName,
-            description: radionCallPointTemplate({
-                entity, 
-                operatingTimes,
-                noticesToSkippers  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
-    },
-    noticeToSkippers: function (icon, entity, _, __) {
+    handlebars.registerHelper('toInt', function (str) {
+      return parseInt(str, 10)
+    })
 
-        return {
-            name: entity.title,
-            description: noticeToSkippersTemplate({
-                entity, 
-                _,
-                __  
-            }),
-            properties: {
-                readOnly: true,
-                skIcon: icon
-            }
-        }
+    handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
+      switch (operator) {
+        case '==':
+          return (v1 == v2) ? options.fn(this) : options.inverse(this)
+        case '===':
+          return (v1 === v2) ? options.fn(this) : options.inverse(this)
+        case '!=':
+          return (v1 != v2) ? options.fn(this) : options.inverse(this)
+        case '!==':
+          return (v1 !== v2) ? options.fn(this) : options.inverse(this)
+        case '<':
+          return (v1 < v2) ? options.fn(this) : options.inverse(this)
+        case '<=':
+          return (v1 <= v2) ? options.fn(this) : options.inverse(this)
+        case '>':
+          return (v1 > v2) ? options.fn(this) : options.inverse(this)
+        case '>=':
+          return (v1 >= v2) ? options.fn(this) : options.inverse(this)
+        case '&&':
+          return (v1 && v2) ? options.fn(this) : options.inverse(this)
+        case '||':
+          return (v1 || v2) ? options.fn(this) : options.inverse(this)
+        default:
+          return options.inverse(this)
+      }
+    })
+  },
+  ris: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.objectName,
+      description: risTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
     }
+  },
+  guage: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: `${entity[0].parameterName} - ${entity[0].parameterName}`,
+      description: guageTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  bridge: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.bridgeAreaHeight.name,
+      description: bridgeTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  lock: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.compactLock2.objectName,
+      description: lockTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  berthWithoutTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.compactBerth2.objectname,
+      description: berthWithoutTranshipmentTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  ferryBerth: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.compactBerth2.objectname,
+      description: ferryBerthTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  berthWithTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.compactBerth2.objectname,
+      description: noticeToSkippersTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  radioCallPoint: function (icon, entity, operatingTimes, noticesToSkippers) {
+    return {
+      name: entity.objectName,
+      description: radionCallPointTemplate({
+        entity,
+        operatingTimes,
+        noticesToSkippers
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  },
+  noticeToSkippers: function (icon, entity, _, __) {
+    return {
+      name: entity.title,
+      description: noticeToSkippersTemplate({
+        entity,
+        _,
+        __
+      }),
+      properties: {
+        readOnly: true,
+        skIcon: icon
+      }
+    }
+  }
 }

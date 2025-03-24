@@ -23,36 +23,36 @@
  */
 
 module.exports = {
-    positionToBbox: function (position, distanceMeters) {
-        const nwCoords = calculateNewPosition(position[0], position[1], -45, distanceMeters / 1000)
-        const seCoords = calculateNewPosition(position[0], position[1], 135, distanceMeters / 1000)
+  positionToBbox: function (position, distanceMeters) {
+    const nwCoords = calculateNewPosition(position[0], position[1], -45, distanceMeters / 1000)
+    const seCoords = calculateNewPosition(position[0], position[1], 135, distanceMeters / 1000)
 
-        return [nwCoords.longitude, nwCoords.latitude, seCoords.longitude, seCoords.latitude]
-    }
+    return [nwCoords.longitude, nwCoords.latitude, seCoords.longitude, seCoords.latitude]
+  }
 }
 
 function calculateNewPosition (longitude, latitude, bearing, distanceKms) {
-    const earthRadius = 6371 // Radius of the Earth in kilometers
-    const latitudeRad = toRadians(latitude)
-    const longitudeRad = toRadians(longitude)
-    const bearingRad = toRadians(bearing)
+  const earthRadius = 6371 // Radius of the Earth in kilometers
+  const latitudeRad = toRadians(latitude)
+  const longitudeRad = toRadians(longitude)
+  const bearingRad = toRadians(bearing)
 
-    const newLatitudeRad = Math.asin(Math.sin(latitudeRad) * Math.cos(distanceKms / earthRadius) +
+  const newLatitudeRad = Math.asin(Math.sin(latitudeRad) * Math.cos(distanceKms / earthRadius) +
       Math.cos(latitudeRad) * Math.sin(distanceKms / earthRadius) * Math.cos(bearingRad))
 
-    const newLongitudeRad = longitudeRad + Math.atan2(Math.sin(bearingRad) * Math.sin(distanceKms / earthRadius) * Math.cos(latitudeRad),
-        Math.cos(distanceKms / earthRadius) - Math.sin(latitudeRad) * Math.sin(newLatitudeRad))
+  const newLongitudeRad = longitudeRad + Math.atan2(Math.sin(bearingRad) * Math.sin(distanceKms / earthRadius) * Math.cos(latitudeRad),
+    Math.cos(distanceKms / earthRadius) - Math.sin(latitudeRad) * Math.sin(newLatitudeRad))
 
-    const newLatitude = toDegrees(newLatitudeRad)
-    const newLongitude = toDegrees(newLongitudeRad)
+  const newLatitude = toDegrees(newLatitudeRad)
+  const newLongitude = toDegrees(newLongitudeRad)
 
-    return { latitude: newLatitude, longitude: newLongitude }
+  return { latitude: newLatitude, longitude: newLongitude }
 }
 
 function toRadians (degrees) {
-    return degrees * Math.PI / 180
+  return degrees * Math.PI / 180
 }
 
 function toDegrees (radians) {
-    return radians * 180 / Math.PI
+  return radians * 180 / Math.PI
 }

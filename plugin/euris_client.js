@@ -30,540 +30,536 @@ const mercator = 102100
 const userAgent = 'Signal K EuRIS Plugin'
 
 axios.interceptors.request.use(request => {
-    // console.log('Starting Request', JSON.stringify(request, null, 2))
-    return request
+  // console.log('Starting Request', JSON.stringify(request, null, 2))
+  return request
 }, error => {
-    Promise.reject(error)
+  Promise.reject(error)
 })
-  
+
 axios.interceptors.response.use(response => {
-    // console.log('Received Response', JSON.stringify(response.data, null, 2))
-    return response
+  // console.log('Received Response', JSON.stringify(response.data, null, 2))
+  return response
 }, error => {
-    Promise.reject(error)
+  Promise.reject(error)
 })
 
 module.exports = {
-    listBridges: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
+  listBridges: function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
 
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    f: 'json',
-                    returnGeometry: true,
-                    outFields: 'LOCODE,OBJECTNAME',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    geometryType: 'esriGeometryEnvelope',
-                    inSR: wgs84,
-                    outSR: wgs84,
-                    geometry: JSON.stringify({
-                        xmin: x1,
-                        ymin: y1,
-                        xmax: x2,
-                        ymax: y2,
-                        spatialReference: {
-                            wkid: wgs84
-                        }
-                    })
-                }
-            }).then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.LOCODE,
-                        name: feature.attributes.OBJECTNAME,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-                
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          f: 'json',
+          returnGeometry: true,
+          outFields: 'LOCODE,OBJECTNAME',
+          spatialRel: 'esriSpatialRelIntersects',
+          geometryType: 'esriGeometryEnvelope',
+          inSR: wgs84,
+          outSR: wgs84,
+          geometry: JSON.stringify({
+            xmin: x1,
+            ymin: y1,
+            xmax: x2,
+            ymax: y2,
+            spatialReference: {
+              wkid: wgs84
+            }
+          })
         }
-    },
-    bridgeDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/BridgeAreas/GetBridgeArea`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    isrs: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching bridge details ${id} - ${error}`)
-        }
-    },
-    listLocks: async function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    f: 'json',
-                    returnGeometry: true,
-                    outFields: 'LOCODE,OBJECTNAME',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    geometryType: 'esriGeometryEnvelope',
-                    inSR: wgs84,
-                    outSR: wgs84,
-                    geometry: JSON.stringify({
-                        xmin: x1,
-                        ymin: y1,
-                        xmax: x2,
-                        ymax: y2,
-                        spatialReference: {
-                            wkid: wgs84
-                        }
-                    })
-                }
-            }).then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.LOCODE,
-                        name: feature.attributes.OBJECTNAME,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    },
-    lockDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    isrs: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching lock details ${id} - ${error}`)
-        }
-    },
-    listBarrages: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
-
-        const $filter = `function eq 'gatare' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-    
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    $filter
-                }
-            }).then(response => {
-                return response.data.items.map((item) => {
-                    return {
-                        id: item.isrs,
-                        name: item.objectName,
-                        point: [item.lon, item.lat]
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching barrage list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    },
-    listRadioCallPoints: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
-
-        const $filter = `function eq 'RDOCAL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-    
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    $filter
-                }
-            }).then(response => {
-                return response.data.items.map((item) => {
-                    return {
-                        id: item.isrs,
-                        name: item.objectName,
-                        point: [item.lon, item.lat]
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching radio call point list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    
-    },
-    radioCallPointDetails: function(app, id) {
-        const url = `${baseUrl}/visuris/api/Rdocal/GetRdocal`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    key: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching lock details ${id} - ${error}`)
-        }
-    },
-    listPorts: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'PRTAR', x1, y1, x2, y2)
-    }, 
-    listDocks: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'BER01', x1, y1, x2, y2)
-    },     
-    listStructures: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'EXCNS', x1, y1, x2, y2)
-    }, 
-    listFuel: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'BU001', x1, y1, x2, y2)
-    }, 
-    listTurningBasins: function (app, x1, y1, x2, y2) {
-        return listRis(app, 'TRNBS', x1, y1, x2, y2)
-    }, 
-    listTunnels: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
-
-        const $filter = `function eq 'TUNNEL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-        
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    $filter
-                }
-            }).then(response => {
-                return response.data.items.map((item) => {
-                    return {
-                        id: item.isrs,
-                        name: item.objectName,
-                        point: [item.lon, item.lat]
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    },
-    listGuages: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/hydrometeo/VER/0/query`
-        
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    f: 'json',
-                    returnGeometry: true,
-                    spatialRel: 'esriSpatialRelIntersects',
-                    geometry: JSON.stringify({
-                        xmin: longitudeToMercator(x1),
-                        ymin: latitudeToMercator(y2),
-                        xmax: longitudeToMercator(x2),
-                        ymax: latitudeToMercator(y1),
-                        spatialReference: {
-                            wkid: mercator
-                        }
-                    }),
-                    geometryType: 'esriGeometryEnvelope',
-                    inSR: wgs84,
-                    outSR: wgs84
-                }
-            }).then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: feature.attributes.LocationParameterID,
-                        name: feature.attributes.Location,
-                        point: [feature.geometry.x, feature.geometry.y]
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    }, 
-    guageDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItem`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    linkID: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching guage details ${id} - ${error}`)
-        }
-    },
-    guageHistory: function (app, id, days) {
-        const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItemHistory`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    linkID: id,
-                    historicalDays: days
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching guage history ${id} - ${error}`)
-        }
-    },
-    dockDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    isrs: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching dock details ${id} - ${error}`)
-        }
-    },
-    risDetails: function (app, id) {
-        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    isrs: id
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching RIS index details ${id} - ${error}`)
-        }
-    },
-    operatingTimes: function (app, id, date) {
-        const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
-
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    isrs: id,
-                    day: date.toISOString().split('T')[0]
-                }
-            }).then(response => {
-                return response.data
-            })
-        } catch (error) {
-            app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
-        }
-    },
-    listNoticesToSkippers: function (app, x1, y1, x2, y2) {
-        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
-
-        try {
-
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    f: 'json',
-                    where: "1=1",
-                    returnGeometry: true,
-                    returnIdsOnly: false,
-                    outFields: 'NtSNumber,NtSHeaderID,NtSSectionID,Title',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    geometryType: 'esriGeometryEnvelope',
-                    outSR: wgs84,
-                    geometry: JSON.stringify({
-                        xmin: longitudeToMercator(x1),
-                        ymin: latitudeToMercator(y2),
-                        xmax: longitudeToMercator(x2),
-                        ymax: latitudeToMercator(y1),
-                        spatialReference: {
-                            wkid: mercator
-                        }
-                    }),
-                    time: `${Date.now()},${Date.now()}`
-                }
-            }).then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
-                        name: `${feature.attributes.Title}`,
-                        point: [feature.geometry.x, feature.geometry.y],
-                        extra: {
-                            ntsNumber: feature.attributes.NtSNumber
-                        } 
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-        }
-    },
-    noticeToSkippersGeometry: async function (app, id) {
-        const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
-    
-        try {
-            return axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    f: 'json',
-                    where: `NtsNumber IN('${id}')`,
-                    returnGeometry: true,
-                    spatialRel: 'esriSpatialRelIntersects',
-                    outFields: '',
-                    outSR: wgs84
-                }
-            }).then(response => {
-                return response.data.features.map((feature) => {
-                    return {
-                        type: feature.attributes.Tooltip,
-                        geometry: feature.geometry
-                    }
-                })
-            })
-        } catch (error) {
-            app.debug(`ERROR fetching notices to skippers geometry ${id} - ${error}`)
-        }
-    },
-    noticeToSkippersForObject: async function (app, id) {
-        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
-
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    objectId: id
-                }
-            })
-            return response.data
-        } catch (error) {
-            app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
-        }
-    },
-    noticeToSkippers: async function (app, id) {
-        const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
-
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': userAgent,
-                    Accept: 'application/json'
-                },
-                params: {
-                    identifier: id
-                }
-            })
-            return response.data
-        } catch (error) {
-            app.debug(`ERROR: fetching operating times for ${id} - ${error}`)
-        }
+      }).then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            id: feature.attributes.LOCODE,
+            name: feature.attributes.OBJECTNAME,
+            point: [feature.geometry.x, feature.geometry.y]
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
     }
-}
+  },
+  bridgeDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/BridgeAreas/GetBridgeArea`
 
-async function listRis(app, objectCode, x1, y1, x2, y2) {
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          isrs: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching bridge details ${id} - ${error}`)
+    }
+  },
+  listLocks: async function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          f: 'json',
+          returnGeometry: true,
+          outFields: 'LOCODE,OBJECTNAME',
+          spatialRel: 'esriSpatialRelIntersects',
+          geometryType: 'esriGeometryEnvelope',
+          inSR: wgs84,
+          outSR: wgs84,
+          geometry: JSON.stringify({
+            xmin: x1,
+            ymin: y1,
+            xmax: x2,
+            ymax: y2,
+            spatialReference: {
+              wkid: wgs84
+            }
+          })
+        }
+      }).then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            id: feature.attributes.LOCODE,
+            name: feature.attributes.OBJECTNAME,
+            point: [feature.geometry.x, feature.geometry.y]
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    }
+  },
+  lockDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          isrs: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching lock details ${id} - ${error}`)
+    }
+  },
+  listBarrages: function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
-    const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
-    
+    const $filter = `function eq 'gatare' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+
     try {
-        const response = await axios.get(url, {
-            headers: {
-                'User-Agent': userAgent,
-                Accept: 'application/json'
-            },
-            params: {
-                $filter
-            }
-        })
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          $filter
+        }
+      }).then(response => {
         return response.data.items.map((item) => {
-            return {
-                id: item.isrs,
-                name: item.objectName,
-                point: [item.lon, item.lat]
-            }
+          return {
+            id: item.isrs,
+            name: item.objectName,
+            point: [item.lon, item.lat]
+          }
         })
+      })
     } catch (error) {
-        app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+      app.debug(`ERROR fetching barrage list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
     }
+  },
+  listRadioCallPoints: function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+    const $filter = `function eq 'RDOCAL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          $filter
+        }
+      }).then(response => {
+        return response.data.items.map((item) => {
+          return {
+            id: item.isrs,
+            name: item.objectName,
+            point: [item.lon, item.lat]
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching radio call point list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    }
+  },
+  radioCallPointDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/Rdocal/GetRdocal`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          key: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching lock details ${id} - ${error}`)
+    }
+  },
+  listPorts: function (app, x1, y1, x2, y2) {
+    return listRis(app, 'PRTAR', x1, y1, x2, y2)
+  },
+  listDocks: function (app, x1, y1, x2, y2) {
+    return listRis(app, 'BER01', x1, y1, x2, y2)
+  },
+  listStructures: function (app, x1, y1, x2, y2) {
+    return listRis(app, 'EXCNS', x1, y1, x2, y2)
+  },
+  listFuel: function (app, x1, y1, x2, y2) {
+    return listRis(app, 'BU001', x1, y1, x2, y2)
+  },
+  listTurningBasins: function (app, x1, y1, x2, y2) {
+    return listRis(app, 'TRNBS', x1, y1, x2, y2)
+  },
+  listTunnels: function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+    const $filter = `function eq 'TUNNEL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          $filter
+        }
+      }).then(response => {
+        return response.data.items.map((item) => {
+          return {
+            id: item.isrs,
+            name: item.objectName,
+            point: [item.lon, item.lat]
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    }
+  },
+  listGuages: function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/hydrometeo/VER/0/query`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          f: 'json',
+          returnGeometry: true,
+          spatialRel: 'esriSpatialRelIntersects',
+          geometry: JSON.stringify({
+            xmin: longitudeToMercator(x1),
+            ymin: latitudeToMercator(y2),
+            xmax: longitudeToMercator(x2),
+            ymax: latitudeToMercator(y1),
+            spatialReference: {
+              wkid: mercator
+            }
+          }),
+          geometryType: 'esriGeometryEnvelope',
+          inSR: wgs84,
+          outSR: wgs84
+        }
+      }).then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            id: feature.attributes.LocationParameterID,
+            name: feature.attributes.Location,
+            point: [feature.geometry.x, feature.geometry.y]
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    }
+  },
+  guageDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItem`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          linkID: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching guage details ${id} - ${error}`)
+    }
+  },
+  guageHistory: function (app, id, days) {
+    const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItemHistory`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          linkID: id,
+          historicalDays: days
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching guage history ${id} - ${error}`)
+    }
+  },
+  dockDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          isrs: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching dock details ${id} - ${error}`)
+    }
+  },
+  risDetails: function (app, id) {
+    const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          isrs: id
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching RIS index details ${id} - ${error}`)
+    }
+  },
+  operatingTimes: function (app, id, date) {
+    const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          isrs: id,
+          day: date.toISOString().split('T')[0]
+        }
+      }).then(response => {
+        return response.data
+      })
+    } catch (error) {
+      app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+    }
+  },
+  listNoticesToSkippers: function (app, x1, y1, x2, y2) {
+    const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          f: 'json',
+          where: '1=1',
+          returnGeometry: true,
+          returnIdsOnly: false,
+          outFields: 'NtSNumber,NtSHeaderID,NtSSectionID,Title',
+          spatialRel: 'esriSpatialRelIntersects',
+          geometryType: 'esriGeometryEnvelope',
+          outSR: wgs84,
+          geometry: JSON.stringify({
+            xmin: longitudeToMercator(x1),
+            ymin: latitudeToMercator(y2),
+            xmax: longitudeToMercator(x2),
+            ymax: latitudeToMercator(y1),
+            spatialReference: {
+              wkid: mercator
+            }
+          }),
+          time: `${Date.now()},${Date.now()}`
+        }
+      }).then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
+            name: `${feature.attributes.Title}`,
+            point: [feature.geometry.x, feature.geometry.y],
+            extra: {
+              ntsNumber: feature.attributes.NtSNumber
+            }
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+    }
+  },
+  noticeToSkippersGeometry: async function (app, id) {
+    const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
+
+    try {
+      return axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          f: 'json',
+          where: `NtsNumber IN('${id}')`,
+          returnGeometry: true,
+          spatialRel: 'esriSpatialRelIntersects',
+          outFields: '',
+          outSR: wgs84
+        }
+      }).then(response => {
+        return response.data.features.map((feature) => {
+          return {
+            type: feature.attributes.Tooltip,
+            geometry: feature.geometry
+          }
+        })
+      })
+    } catch (error) {
+      app.debug(`ERROR fetching notices to skippers geometry ${id} - ${error}`)
+    }
+  },
+  noticeToSkippersForObject: async function (app, id) {
+    const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          objectId: id
+        }
+      })
+      return response.data
+    } catch (error) {
+      app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
+    }
+  },
+  noticeToSkippers: async function (app, id) {
+    const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'application/json'
+        },
+        params: {
+          identifier: id
+        }
+      })
+      return response.data
+    } catch (error) {
+      app.debug(`ERROR: fetching operating times for ${id} - ${error}`)
+    }
+  }
 }
 
+async function listRis (app, objectCode, x1, y1, x2, y2) {
+  const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
-const EARTHRADIUS = 6378137; // Earth radius in meters
+  const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
 
-function longitudeToMercator(lon) {
-    // Convert longitude to X coordinate (meters)
-    return lon * (Math.PI / 180) * EARTHRADIUS;
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        $filter
+      }
+    })
+    return response.data.items.map((item) => {
+      return {
+        id: item.isrs,
+        name: item.objectName,
+        point: [item.lon, item.lat]
+      }
+    })
+  } catch (error) {
+    app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+  }
 }
 
-function latitudeToMercator(lat) {
-    // Convert latitude to Y coordinate (meters), with Mercator projection
-    return Math.log(Math.tan((Math.PI / 4) + (lat * Math.PI / 180) / 2)) * EARTHRADIUS;
+const EARTHRADIUS = 6378137 // Earth radius in meters
+
+function longitudeToMercator (lon) {
+  // Convert longitude to X coordinate (meters)
+  return lon * (Math.PI / 180) * EARTHRADIUS
+}
+
+function latitudeToMercator (lat) {
+  // Convert latitude to Y coordinate (meters), with Mercator projection
+  return Math.log(Math.tan((Math.PI / 4) + (lat * Math.PI / 180) / 2)) * EARTHRADIUS
 }
