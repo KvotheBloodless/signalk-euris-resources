@@ -75,7 +75,7 @@ module.exports = function (app) {
             setupForDocks(options.cachingDurationMinutes);
         }
         if (options.includeNoticesToSkippers) {
-            setupForNoticesToSkippers(options.cachingDurationMinutes);
+            setupForNoticesToSkippers();
         }
         if (options.includeRadioCalls) {
             setupForRadioCallPoints(options.cachingDurationMinutes);
@@ -226,13 +226,13 @@ module.exports = function (app) {
                         })
                     },
                     getResource: (id, property) => {
-                        throw new Error('Not supported!');
+                        throw new Error(`getResource(${id}, ${property}) - Not supported!`);
                     },
                     setResource: (id, value) => {
-                        throw new Error('Not supported!');
+                        throw new Error(`setResource(${id}, ${value}) - Not supported!`);
                     },
                     deleteResource: (id) => {
-                        throw new Error('Not supported!');
+                        throw new Error(`deleteResource(${id}) - Not supported!`);
                     }
                 }
             });
@@ -339,15 +339,15 @@ module.exports = function (app) {
                         }
                     },
                     getResource: (id, property) => {
-                        app.debug(`Incoming request to get note ${id}`);
+                        app.debug(`Incoming request to get note ${id} property ${property}`);
 
                         return getNote(id);
                     },
                     setResource: (id, value) => {
-                        throw new Error('Not supported!');
+                        throw new Error(`seleteResource(${id}, ${value}) - Not supported!`);
                     },
                     deleteResource: (id) => {
-                        throw new Error('Not supported!');
+                        throw new Error(`deleteResource(${id}) - Not supported!`);
                     }
                 }
             });
@@ -615,7 +615,7 @@ module.exports = function (app) {
         });
     }
 
-    function setupForNoticesToSkippers(cachingDurationMinutes) {
+    function setupForNoticesToSkippers() {
         sourceConfig.set('notam', {
             detailsCache: noticesToSkippersCache,
             listMethod: client.listNoticesToSkippers,
@@ -663,7 +663,7 @@ module.exports = function (app) {
                 return client.noticeToSkippers(app, id).then(details => {
                     // The JSON contains a strange XML string which we need to decode.
                     // The easiest solution is to convert it to JSON so that we can explore it as needed.
-                    details.xml = xml2js.xml2js(details.xml.replaceAll('\"', '"'), {
+                    details.xml = xml2js.xml2js(details.xml.replaceAll('\\"', '"'), {
                         compact: true,
                         spaces: 0
                     });
@@ -677,7 +677,7 @@ module.exports = function (app) {
 
         objectNoticesToSkippersCache = loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
             id => {
-                return client.noticeToSkippersForObject(app, id, new Date()).then(details => {
+                return client.noticeToSkippersForObject(app, id).then(details => {
                     return Promise.all(
                         details.map(detail => `${detail.headerID}|${detail.sectionId}`).map(ntsId => {
                             // We now go to our usual cache and grab the actual NtS

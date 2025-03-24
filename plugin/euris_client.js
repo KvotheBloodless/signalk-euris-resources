@@ -23,7 +23,6 @@
  */
 
 const axios = require('axios')
-const { xml2json } = require('xml-js')
 
 const baseUrl = 'https://www.eurisportal.eu'
 const wgs84 = 4326 // WGS 84
@@ -491,7 +490,7 @@ module.exports = {
             app.debug(`ERROR fetching notices to skippers geometry ${id} - ${error}`)
         }
     },
-    noticeToSkippersForObject: async function (app, id, date) {
+    noticeToSkippersForObject: async function (app, id) {
         const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
 
         try {

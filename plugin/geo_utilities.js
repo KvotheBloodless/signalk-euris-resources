@@ -40,7 +40,7 @@ module.exports = {
         if (!isArray(thickness)) {
             var t = thickness
             thickness = []
-            for (var i = 0; i < points.length; i++) {
+            for (var j = 0; j < points.length; j++) {
                 thickness.push(t)
             }
         }
@@ -53,18 +53,18 @@ module.exports = {
             interA, interB,
             p0a, p1a, p0b, p1b
 
-        for (var i = 0, il = points.length - 1; i < il; i++) {
-            isFirst = !i
-            isLast = (i === points.length - 2)
+        for (var k = 0, kl = points.length - 1; k < kl; k++) {
+            isFirst = !k
+            isLast = (k === points.length - 2)
 
-            off = getOffsets(points[i], points[i + 1], thickness[i])
-            off2 = getOffsets(points[i], points[i + 1], thickness[i + 1])
+            off = getOffsets(points[k], points[k + 1], thickness[k])
+            off2 = getOffsets(points[k], points[k + 1], thickness[k + 1])
 
-            p0a = { x: points[i].x + off.x, y: points[i].y + off.y }
-            p1a = { x: points[i + 1].x + off2.x, y: points[i + 1].y + off2.y }
+            p0a = { x: points[k].x + off.x, y: points[k].y + off.y }
+            p1a = { x: points[k + 1].x + off2.x, y: points[k + 1].y + off2.y }
 
-            p0b = { x: points[i].x - off.x, y: points[i].y - off.y }
-            p1b = { x: points[i + 1].x - off2.x, y: points[i + 1].y - off2.y }
+            p0b = { x: points[k].x - off.x, y: points[k].y - off.y }
+            p1b = { x: points[k + 1].x - off2.x, y: points[k + 1].y - off2.y }
 
             if (!isFirst) {
                 interA = getIntersection(prevA[0], prevA[1], p0a, p1a)
@@ -94,9 +94,9 @@ module.exports = {
         }
 
 
-        for (var i = 0; i < poly.length; i++) {
-            var pt = poly[i]
-            poly[i] = [pt.x, pt.y]
+        for (var l = 0; l < poly.length; l++) {
+            var pnt = poly[l]
+            poly[l] = [pnt.x, pnt.y]
         }
 
         poly.push(poly[0])

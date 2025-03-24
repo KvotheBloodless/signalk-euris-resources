@@ -25,7 +25,6 @@
 const handlebars = require('handlebars')
 const helpersForHandlebars = require('helpers-for-handlebars')
 const fs = require('node:fs')
-const { noticeToSkippers } = require('./euris_client')
 
 const partialsDir = './node_modules/signalk-euris-resources/plugin/partials/'
 
@@ -41,7 +40,6 @@ const bridgeTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/bridg
 const lockTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/lock.hbs`, 'utf-8'))
 const guageTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/guage.hbs`, 'utf-8'))
 const berthWithoutTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithoutTranshipment.hbs`, 'utf-8'))
-const berthWithTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithTranshipment.hbs`, 'utf-8'))
 const ferryBerthTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ferryBerth.hbs`, 'utf-8'))
 const radionCallPointTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/radioCallPoint.hbs`, 'utf-8'))
 const noticeToSkippersTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/noticeToSkippers.hbs`, 'utf-8'))
@@ -286,14 +284,14 @@ module.exports = {
             }
         }
     },
-    noticeToSkippers: function (icon, entity, _, _) {
+    noticeToSkippers: function (icon, entity, _, __) {
 
         return {
             name: entity.title,
             description: noticeToSkippersTemplate({
                 entity, 
                 _,
-                _  
+                __  
             }),
             properties: {
                 readOnly: true,
