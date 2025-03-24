@@ -80,6 +80,12 @@ module.exports = function (app) {
         if (options.includeRadioCalls) {
             setupForRadioCallPoints(options.cachingDurationMinutes);
         }
+        if (options.includeGuages) {
+            setupForGuages(options.cachingDurationMinutes);
+        }
+        if (options.includeBarrages) {
+            setupForBarrages(options.cachingDurationMinutes);
+        }
 
         registerAsRegionsResourcesProvider();
         registerAsNoteResourcesProvider(options.agressivePreload);
@@ -152,6 +158,16 @@ module.exports = function (app) {
             includeRadioCalls: {
                 type: 'boolean',
                 title: 'Include radio call points',
+                default: true
+            },            
+            includeGuages: {
+                type: 'boolean',
+                title: 'Include waterway guages',
+                default: true
+            },
+            includeBarrages: {
+                type: 'boolean',
+                title: 'Include dams',
                 default: true
             },
             cachingDurationMinutes: {
@@ -314,9 +330,7 @@ module.exports = function (app) {
 
                             return getNote(noteId).then(note => {
                                 const m = [];
-                                app.debug(`KEY: ${noteId} VALUE: ${JSON.stringify(note)}`);
                                 m[noteId] = note;
-                                app.debug(`MAP: ${JSON.stringify(m)}`);
                                 return m;
                             });
                         } else {
@@ -415,7 +429,45 @@ module.exports = function (app) {
             ),
             listMethod: client.listStructures,
             formatter: handlebarUtilities.ris,
-            icon: 'structure',
+            icon: 'navigation-stucture',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForBarrages(cachingDurationMinutes) {
+        sourceConfig.set('structure', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return client.risDetails(app, id).then(details => {
+                        return details;
+                    }, error => {
+                        app.debug(`ERROR: ${error}`);
+                        throw error;
+                    });
+                }
+            ),
+            listMethod: client.listBarrages,
+            formatter: handlebarUtilities.ris,
+            icon: 'dam',
+            canHaveGeometry: false
+        });
+    }
+
+    function setupForGuages(cachingDurationMinutes) {
+        sourceConfig.set('guage', {
+            detailsCache: loadingCache.Caches.builder().expireAfterWrite(time.Time.minutes(cachingDurationMinutes)).buildAsync(
+                id => {
+                    return Promise.all([client.guageDetails(app, id), client.guageHistory(app, id, 3)]).then(values => {
+                        return values;
+                    }).then(results => {
+                        app.debug(`Fetched Guage ${id} - ${JSON.stringify(results)}`);
+                        return results;
+                    });
+                }
+            ),
+            listMethod: client.listGuages,
+            formatter: handlebarUtilities.guage,
+            icon: 'waterway-guage',
             canHaveGeometry: false
         });
     }
@@ -619,9 +671,6 @@ module.exports = function (app) {
                 }, error => {
                     app.debug(`ERROR: ${error}`);
                     throw error;
-                }).then(entity => {
-                    app.debug(`Fetched NtS ${id} - ${JSON.stringify(entity)}`);
-                    return entity;
                 });
             }
         );

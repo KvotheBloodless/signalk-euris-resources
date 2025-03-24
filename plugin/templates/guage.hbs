@@ -1,0 +1,26 @@
+<hr/>
+<div>
+    {{entity.0.parameterName}} measured at {{dateFormat entity.0.measuredAt "h:mm"}} on {{dateFormat entity.0.measuredAt "Do MMMM"}}: {{entity.0.value}} {{entity.0.dataUnit}}
+</div>
+{{#if noticesToSkippers}}
+<div>
+    {{#eachIndex noticesToSkippers}}
+        <hr/>
+        <h4>Notice to skippers {{plus index 1}}</h4>    
+        {{> noticeToSkippers item }}
+    {{/eachIndex}}
+</div>
+{{/if}}
+{{#if operatingTimes}}
+<hr/>
+<div>
+    <h4>Operating times today</h4>
+    {{#each operatingTimes}}
+        <p>
+            {{> operatingTime this }}
+        </p>
+    {{/each}}
+</div>
+{{/if}}
+{{> footer}}
+{{> disclaimer}}

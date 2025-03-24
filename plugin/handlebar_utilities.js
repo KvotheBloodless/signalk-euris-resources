@@ -39,6 +39,7 @@ const templatesDir = './node_modules/signalk-euris-resources/plugin/templates/'
 const risTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ris.hbs`, 'utf-8'))
 const bridgeTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/bridge.hbs`, 'utf-8'))
 const lockTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/lock.hbs`, 'utf-8'))
+const guageTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/guage.hbs`, 'utf-8'))
 const berthWithoutTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithoutTranshipment.hbs`, 'utf-8'))
 const berthWithTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithTranshipment.hbs`, 'utf-8'))
 const ferryBerthTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ferryBerth.hbs`, 'utf-8'))
@@ -177,6 +178,20 @@ module.exports = {
         return {
             name: entity.objectName,
             description: risTemplate({
+                entity, 
+                operatingTimes,
+                noticesToSkippers  
+            }),
+            properties: {
+                readOnly: true,
+                skIcon: icon
+            }
+        }
+    },  
+    guage: function (icon, entity, operatingTimes, noticesToSkippers) {
+        return {
+            name: `${entity[0].parameterName} - ${entity[0].parameterName}`,
+            description: guageTemplate({
                 entity, 
                 operatingTimes,
                 noticesToSkippers  

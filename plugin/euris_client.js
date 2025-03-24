@@ -164,6 +164,33 @@ module.exports = {
             app.debug(`ERROR: fetching lock details ${id} - ${error}`)
         }
     },
+    listBarrages: function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
+
+        const $filter = `function eq 'gatare' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
+    
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    $filter
+                }
+            }).then(response => {
+                return response.data.items.map((item) => {
+                    return {
+                        id: item.isrs,
+                        name: item.objectName,
+                        point: [item.lon, item.lat]
+                    }
+                })
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching barrage list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    },
     listRadioCallPoints: function (app, x1, y1, x2, y2) {
         const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
@@ -188,7 +215,7 @@ module.exports = {
                 })
             })
         } catch (error) {
-            app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+            app.debug(`ERROR fetching radio call point list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
         }
     
     },
@@ -251,6 +278,84 @@ module.exports = {
             })
         } catch (error) {
             app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    },
+    listGuages: function (app, x1, y1, x2, y2) {
+        const url = `${baseUrl}/api/arcgis/rest/services/hydrometeo/VER/0/query`
+        
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    f: 'json',
+                    returnGeometry: true,
+                    spatialRel: 'esriSpatialRelIntersects',
+                    geometry: JSON.stringify({
+                        xmin: longitudeToMercator(x1),
+                        ymin: latitudeToMercator(y2),
+                        xmax: longitudeToMercator(x2),
+                        ymax: latitudeToMercator(y1),
+                        spatialReference: {
+                            wkid: mercator
+                        }
+                    }),
+                    geometryType: 'esriGeometryEnvelope',
+                    inSR: wgs84,
+                    outSR: wgs84
+                }
+            }).then(response => {
+                return response.data.features.map((feature) => {
+                    return {
+                        id: feature.attributes.LocationParameterID,
+                        name: feature.attributes.Location,
+                        point: [feature.geometry.x, feature.geometry.y]
+                    }
+                })
+            })
+        } catch (error) {
+            app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
+        }
+    }, 
+    guageDetails: function (app, id) {
+        const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItem`
+
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    linkID: id
+                }
+            }).then(response => {
+                return response.data
+            })
+        } catch (error) {
+            app.debug(`ERROR: fetching guage details ${id} - ${error}`)
+        }
+    },
+    guageHistory: function (app, id, days) {
+        const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItemHistory`
+
+        try {
+            return axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    Accept: 'application/json'
+                },
+                params: {
+                    linkID: id,
+                    historicalDays: days
+                }
+            }).then(response => {
+                return response.data
+            })
+        } catch (error) {
+            app.debug(`ERROR: fetching guage history ${id} - ${error}`)
         }
     },
     dockDetails: function (app, id) {
@@ -383,7 +488,7 @@ module.exports = {
                 })
             })
         } catch (error) {
-            app.debug(`ERROR fetching NtS geometry ${id} - ${error}`)
+            app.debug(`ERROR fetching notices to skippers geometry ${id} - ${error}`)
         }
     },
     noticeToSkippersForObject: async function (app, id, date) {
@@ -419,7 +524,7 @@ module.exports = {
             })
             return response.data
         } catch (error) {
-            app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
+            app.debug(`ERROR: fetching operating times for ${id} - ${error}`)
         }
     }
 }
@@ -440,8 +545,6 @@ async function listRis(app, objectCode, x1, y1, x2, y2) {
             }
         })
         return response.data.items.map((item) => {
-            app.debug(`${JSON.stringify(item)}`);
-
             return {
                 id: item.isrs,
                 name: item.objectName,
