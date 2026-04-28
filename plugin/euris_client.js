@@ -29,499 +29,512 @@ const wgs84 = 4326 // WGS 84
 const mercator = 102100
 const userAgent = 'Signal K EuRIS Plugin'
 
+const REQUEST_TIMEOUT = 5000 // ms
+const MAX_RETRIES = 2
+const RETRY_DELAY_MS = 1000
+let eurisDownUntil = 0; // Timestamp until which EuRIS requests are skipped
+
 axios.interceptors.request.use(request => {
   // console.log('Starting Request', JSON.stringify(request, null, 2))
   return request
 }, error => {
-  Promise.reject(error)
+  return Promise.reject(error)
 })
 
 axios.interceptors.response.use(response => {
   // console.log('Received Response', JSON.stringify(response.data, null, 2))
   return response
 }, error => {
-  Promise.reject(error)
+  return Promise.reject(error)
 })
 
+async function httpGetWithRetry (app, url, config, context) {
+  // CIRCUIT BREAKER: skip requests while EuRIS is marked as down
+  if (Date.now() < eurisDownUntil) {
+    const untilLocal = new Date(eurisDownUntil).toLocaleString();
+    app.debug(`EURIS skipped (circuit breaker active until ${untilLocal})`);
+    return null;
+  }
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await axios.get(url, {
+        timeout: REQUEST_TIMEOUT,
+        ...config
+      });
+      return response;
+    } catch (error) {
+      const msg = error && error.message ? error.message : error;
+
+      if (attempt === MAX_RETRIES) {
+        app.debug(`ERROR ${context} (giving up after ${attempt + 1} attempts): ${msg}`);
+
+        // CIRCUIT BREAKER: mark EuRIS as down for 60 seconds
+        eurisDownUntil = Date.now() + 60000;
+        app.debug(`EURIS marked as DOWN for 60 seconds`);
+
+        return null;
+      } else {
+        app.debug(`WARN ${context} attempt ${attempt + 1} failed: ${msg}`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
-  listBridges: function (app, x1, y1, x2, y2) {
+  listBridges: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/api/arcgis/rest/services/bridgestatus/0/query`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          f: 'json',
-          returnGeometry: true,
-          outFields: 'LOCODE,OBJECTNAME',
-          spatialRel: 'esriSpatialRelIntersects',
-          geometryType: 'esriGeometryEnvelope',
-          inSR: wgs84,
-          outSR: wgs84,
-          geometry: JSON.stringify({
-            xmin: x1,
-            ymin: y1,
-            xmax: x2,
-            ymax: y2,
-            spatialReference: {
-              wkid: wgs84
-            }
-          })
-        }
-      }).then(response => {
-        return response.data.features.map((feature) => {
-          return {
-            id: feature.attributes.LOCODE,
-            name: feature.attributes.OBJECTNAME,
-            point: [feature.geometry.x, feature.geometry.y]
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        returnGeometry: true,
+        outFields: 'LOCODE,OBJECTNAME',
+        spatialRel: 'esriSpatialRelIntersects',
+        geometryType: 'esriGeometryEnvelope',
+        inSR: wgs84,
+        outSR: wgs84,
+        geometry: JSON.stringify({
+          xmin: x1,
+          ymin: y1,
+          xmax: x2,
+          ymax: y2,
+          spatialReference: {
+            wkid: wgs84
           }
         })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+      }
+    }, `fetching bridge list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.features) return []
+    return response.data.features.map((feature) => {
+      return {
+        id: feature.attributes.LOCODE,
+        name: feature.attributes.OBJECTNAME,
+        point: [feature.geometry.x, feature.geometry.y]
+      }
+    })
   },
-  bridgeDetails: function (app, id) {
+
+  bridgeDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/BridgeAreas/GetBridgeArea`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          isrs: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching bridge details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id
+      }
+    }, `fetching bridge details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
+
   listLocks: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/api/arcgis/rest/services/lockstatus/0/query`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          f: 'json',
-          returnGeometry: true,
-          outFields: 'LOCODE,OBJECTNAME',
-          spatialRel: 'esriSpatialRelIntersects',
-          geometryType: 'esriGeometryEnvelope',
-          inSR: wgs84,
-          outSR: wgs84,
-          geometry: JSON.stringify({
-            xmin: x1,
-            ymin: y1,
-            xmax: x2,
-            ymax: y2,
-            spatialReference: {
-              wkid: wgs84
-            }
-          })
-        }
-      }).then(response => {
-        return response.data.features.map((feature) => {
-          return {
-            id: feature.attributes.LOCODE,
-            name: feature.attributes.OBJECTNAME,
-            point: [feature.geometry.x, feature.geometry.y]
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        returnGeometry: true,
+        outFields: 'LOCODE,OBJECTNAME',
+        spatialRel: 'esriSpatialRelIntersects',
+        geometryType: 'esriGeometryEnvelope',
+        inSR: wgs84,
+        outSR: wgs84,
+        geometry: JSON.stringify({
+          xmin: x1,
+          ymin: y1,
+          xmax: x2,
+          ymax: y2,
+          spatialReference: {
+            wkid: wgs84
           }
         })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching lock list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+      }
+    }, `fetching lock list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.features) return []
+    return response.data.features.map((feature) => {
+      return {
+        id: feature.attributes.LOCODE,
+        name: feature.attributes.OBJECTNAME,
+        point: [feature.geometry.x, feature.geometry.y]
+      }
+    })
   },
-  lockDetails: function (app, id) {
+
+  lockDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/Locks_v2/GetLock`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          isrs: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching lock details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id
+      }
+    }, `fetching lock details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
-  listBarrages: function (app, x1, y1, x2, y2) {
+
+  listBarrages: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
     const $filter = `function eq 'gatare' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          $filter
-        }
-      }).then(response => {
-        return response.data.items.map((item) => {
-          return {
-            id: item.isrs,
-            name: item.objectName,
-            point: [item.lon, item.lat]
-          }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching barrage list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        $filter
+      }
+    }, `fetching barrage list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.items) return []
+    return response.data.items.map((item) => {
+      return {
+        id: item.isrs,
+        name: item.objectName,
+        point: [item.lon, item.lat]
+      }
+    })
   },
-  listRadioCallPoints: function (app, x1, y1, x2, y2) {
+
+  listRadioCallPoints: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
     const $filter = `function eq 'RDOCAL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          $filter
-        }
-      }).then(response => {
-        return response.data.items.map((item) => {
-          return {
-            id: item.isrs,
-            name: item.objectName,
-            point: [item.lon, item.lat]
-          }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching radio call point list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        $filter
+      }
+    }, `fetching radio call point list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.items) return []
+    return response.data.items.map((item) => {
+      return {
+        id: item.isrs,
+        name: item.objectName,
+        point: [item.lon, item.lat]
+      }
+    })
   },
-  radioCallPointDetails: function (app, id) {
+
+  radioCallPointDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/Rdocal/GetRdocal`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          key: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching lock details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        key: id
+      }
+    }, `fetching radio call point details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
+
   listPorts: function (app, x1, y1, x2, y2) {
     return listRis(app, 'PRTAR', x1, y1, x2, y2)
   },
+
   listDocks: function (app, x1, y1, x2, y2) {
     return listRis(app, 'BER01', x1, y1, x2, y2)
   },
+
   listStructures: function (app, x1, y1, x2, y2) {
     return listRis(app, 'EXCNS', x1, y1, x2, y2)
   },
+
   listFuel: function (app, x1, y1, x2, y2) {
     return listRis(app, 'BU001', x1, y1, x2, y2)
   },
+
   listTurningBasins: function (app, x1, y1, x2, y2) {
     return listRis(app, 'TRNBS', x1, y1, x2, y2)
   },
-  listTunnels: function (app, x1, y1, x2, y2) {
+
+  listTunnels: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObjects`
 
     const $filter = `function eq 'TUNNEL' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          $filter
-        }
-      }).then(response => {
-        return response.data.items.map((item) => {
-          return {
-            id: item.isrs,
-            name: item.objectName,
-            point: [item.lon, item.lat]
-          }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        $filter
+      }
+    }, `fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.items) return []
+    return response.data.items.map((item) => {
+      return {
+        id: item.isrs,
+        name: item.objectName,
+        point: [item.lon, item.lat]
+      }
+    })
   },
-  listGuages: function (app, x1, y1, x2, y2) {
+
+  listGuages: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/api/arcgis/rest/services/hydrometeo/VER/0/query`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          f: 'json',
-          returnGeometry: true,
-          spatialRel: 'esriSpatialRelIntersects',
-          geometry: JSON.stringify({
-            xmin: longitudeToMercator(x1),
-            ymin: latitudeToMercator(y2),
-            xmax: longitudeToMercator(x2),
-            ymax: latitudeToMercator(y1),
-            spatialReference: {
-              wkid: mercator
-            }
-          }),
-          geometryType: 'esriGeometryEnvelope',
-          inSR: wgs84,
-          outSR: wgs84
-        }
-      }).then(response => {
-        return response.data.features.map((feature) => {
-          return {
-            id: feature.attributes.LocationParameterID,
-            name: feature.attributes.Location,
-            point: [feature.geometry.x, feature.geometry.y]
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        returnGeometry: true,
+        spatialRel: 'esriSpatialRelIntersects',
+        geometry: JSON.stringify({
+          xmin: longitudeToMercator(x1),
+          ymin: latitudeToMercator(y2),
+          xmax: longitudeToMercator(x2),
+          ymax: latitudeToMercator(y1),
+          spatialReference: {
+            wkid: mercator
           }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching tunnel list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+        }),
+        geometryType: 'esriGeometryEnvelope',
+        inSR: wgs84,
+        outSR: wgs84
+      }
+    }, `fetching gauge list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.features) return []
+    return response.data.features.map((feature) => {
+      return {
+        id: feature.attributes.LocationParameterID,
+        name: feature.attributes.Location,
+        point: [feature.geometry.x, feature.geometry.y]
+      }
+    })
   },
-  guageDetails: function (app, id) {
+
+  guageDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItem`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          linkID: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching guage details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        linkID: id
+      }
+    }, `fetching gauge details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
-  guageHistory: function (app, id, days) {
+
+  guageHistory: async function (app, id, days) {
     const url = `${baseUrl}/visuris/api/Hydrometeo/GetHydrometeoItemHistory`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          linkID: id,
-          historicalDays: days
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching guage history ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        linkID: id,
+        historicalDays: days
+      }
+    }, `fetching gauge history ${id} (${days} days)`)
+
+    if (!response) return null
+    return response.data
   },
-  dockDetails: function (app, id) {
+
+  dockDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/Berths_v2/GetBerth`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          isrs: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching dock details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id
+      }
+    }, `fetching dock details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
-  risDetails: function (app, id) {
+
+  risDetails: async function (app, id) {
     const url = `${baseUrl}/visuris/api/RisIndices_v2/GetRISIndexObject`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          isrs: id
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching RIS index details ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id
+      }
+    }, `fetching RIS index details ${id}`)
+
+    if (!response) return null
+    return response.data
   },
-  operatingTimes: function (app, id, date) {
+
+  operatingTimes: async function (app, id, date) {
     const url = `${baseUrl}/visuris/api/OperationTimes/GetOperationEventsForDay`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          isrs: id,
-          day: date.toISOString().split('T')[0]
-        }
-      }).then(response => {
-        return response.data
-      })
-    } catch (error) {
-      app.debug(`ERROR: fetching operating times for ${id} on ${date} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        isrs: id,
+        day: date.toISOString().split('T')[0]
+      }
+    }, `fetching operating times for ${id} on ${date.toISOString().split('T')[0]}`)
+
+    if (!response) return null
+    return response.data
   },
-  listNoticesToSkippers: function (app, x1, y1, x2, y2) {
+
+  listNoticesToSkippers: async function (app, x1, y1, x2, y2) {
     const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/0/query`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          f: 'json',
-          where: '1=1',
-          returnGeometry: true,
-          returnIdsOnly: false,
-          outFields: 'NtSNumber,NtSHeaderID,NtSSectionID,Title',
-          spatialRel: 'esriSpatialRelIntersects',
-          geometryType: 'esriGeometryEnvelope',
-          outSR: wgs84,
-          geometry: JSON.stringify({
-            xmin: longitudeToMercator(x1),
-            ymin: latitudeToMercator(y2),
-            xmax: longitudeToMercator(x2),
-            ymax: latitudeToMercator(y1),
-            spatialReference: {
-              wkid: mercator
-            }
-          }),
-          time: `${Date.now()},${Date.now()}`
-        }
-      }).then(response => {
-        return response.data.features.map((feature) => {
-          return {
-            id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
-            name: `${feature.attributes.Title}`,
-            point: [feature.geometry.x, feature.geometry.y],
-            extra: {
-              ntsNumber: feature.attributes.NtSNumber
-            }
+    const now = Date.now()
+
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        where: '1=1',
+        returnGeometry: true,
+        returnIdsOnly: false,
+        outFields: 'NtSNumber,NtSHeaderID,NtSSectionID,Title',
+        spatialRel: 'esriSpatialRelIntersects',
+        geometryType: 'esriGeometryEnvelope',
+        outSR: wgs84,
+        geometry: JSON.stringify({
+          xmin: longitudeToMercator(x1),
+          ymin: latitudeToMercator(y2),
+          xmax: longitudeToMercator(x2),
+          ymax: latitudeToMercator(y1),
+          spatialReference: {
+            wkid: mercator
           }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching bridge list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-    }
+        }),
+        time: `${now},${now}`
+      }
+    }, `fetching notices to skippers list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+    if (!response || !response.data || !response.data.features) return []
+    return response.data.features.map((feature) => {
+      return {
+        id: `${feature.attributes.NtSHeaderID}|${feature.attributes.NtSSectionID}`,
+        name: `${feature.attributes.Title}`,
+        point: [feature.geometry.x, feature.geometry.y],
+        extra: {
+          ntsNumber: feature.attributes.NtSNumber
+        }
+      }
+    })
   },
+
   noticeToSkippersGeometry: async function (app, id) {
     const url = `${baseUrl}/api/arcgis/rest/services/ntsV2/3/query`
 
-    try {
-      return axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          f: 'json',
-          where: `NtsNumber IN('${id}')`,
-          returnGeometry: true,
-          spatialRel: 'esriSpatialRelIntersects',
-          outFields: '',
-          outSR: wgs84
-        }
-      }).then(response => {
-        return response.data.features.map((feature) => {
-          return {
-            type: feature.attributes.Tooltip,
-            geometry: feature.geometry
-          }
-        })
-      })
-    } catch (error) {
-      app.debug(`ERROR fetching notices to skippers geometry ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        f: 'json',
+        where: `NtsNumber IN('${id}')`,
+        returnGeometry: true,
+        spatialRel: 'esriSpatialRelIntersects',
+        outFields: '',
+        outSR: wgs84
+      }
+    }, `fetching notices to skippers geometry ${id}`)
+
+    if (!response || !response.data || !response.data.features) return []
+    return response.data.features.map((feature) => {
+      return {
+        type: feature.attributes.Tooltip,
+        geometry: feature.geometry
+      }
+    })
   },
+
   noticeToSkippersForObject: async function (app, id) {
     const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessagesForObjectId`
 
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          objectId: id
-        }
-      })
-      return response.data
-    } catch (error) {
-      app.debug(`ERROR: fetching notices to skippers for ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        objectId: id
+      }
+    }, `fetching notices to skippers for object ${id}`)
+
+    if (!response) return null
+    return response.data
   },
+
   noticeToSkippers: async function (app, id) {
     const url = `${baseUrl}/visuris/api/NtSV2/GetNtSMessage`
 
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'application/json'
-        },
-        params: {
-          identifier: id
-        }
-      })
-      return response.data
-    } catch (error) {
-      app.debug(`ERROR: fetching operating times for ${id} - ${error}`)
-    }
+    const response = await httpGetWithRetry(app, url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/json'
+      },
+      params: {
+        identifier: id
+      }
+    }, `fetching notice to skippers ${id}`)
+
+    if (!response) return null
+    return response.data
   }
 }
 
@@ -530,26 +543,24 @@ async function listRis (app, objectCode, x1, y1, x2, y2) {
 
   const $filter = `objectCode eq '${objectCode}' and lat gt ${y2.toFixed(8)} and lat lt ${y1.toFixed(8)} and lon gt ${x1.toFixed(8)} and lon lt ${x2.toFixed(8)}`
 
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': userAgent,
-        Accept: 'application/json'
-      },
-      params: {
-        $filter
-      }
-    })
-    return response.data.items.map((item) => {
-      return {
-        id: item.isrs,
-        name: item.objectName,
-        point: [item.lon, item.lat]
-      }
-    })
-  } catch (error) {
-    app.debug(`ERROR fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2} - ${error}`)
-  }
+  const response = await httpGetWithRetry(app, url, {
+    headers: {
+      'User-Agent': userAgent,
+      Accept: 'application/json'
+    },
+    params: {
+      $filter
+    }
+  }, `fetching ${objectCode} list ${x1}, ${y1}, ${x2}, ${y2}`)
+
+  if (!response || !response.data || !response.data.items) return []
+  return response.data.items.map((item) => {
+    return {
+      id: item.isrs,
+      name: item.objectName,
+      point: [item.lon, item.lat]
+    }
+  })
 }
 
 const EARTHRADIUS = 6378137 // Earth radius in meters

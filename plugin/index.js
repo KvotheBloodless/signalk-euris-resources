@@ -45,7 +45,7 @@ module.exports = function (app) {
   const sourceConfig = new Map()
 
   plugin.start = function (options) {
-    handlebarUtilities.helpers()
+    handlebarUtilities.helpers(app)
 
     setupObjectOperatingTimesCache(options.cachingDurationMinutes)
     setupNoticesToSkippersCaches(options.cachingDurationMinutes)
