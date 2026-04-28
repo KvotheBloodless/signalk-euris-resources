@@ -25,27 +25,41 @@
 const handlebars = require('handlebars')
 const helpersForHandlebars = require('helpers-for-handlebars')
 const fs = require('node:fs')
+const path = require('node:path')
 
-const partialsDir = './node_modules/signalk-euris-resources/plugin/partials/'
+let compiledTemplates = {}
 
-handlebars.registerPartial('footer', fs.readFileSync(`${partialsDir}/footer.hbsp`, 'utf-8'))
-handlebars.registerPartial('disclaimer', fs.readFileSync(`${partialsDir}/disclaimer.hbsp`, 'utf-8'))
-handlebars.registerPartial('operatingTime', fs.readFileSync(`${partialsDir}/operating_time.hbsp`, 'utf-8'))
-handlebars.registerPartial('noticeToSkippers', fs.readFileSync(`${partialsDir}/notice_to_skippers.hbsp`, 'utf-8'))
+function initializeTemplates (basePath, resourceName = 'signalk-euris-resources') {
+  const partialsDir = path.join(basePath, 'node_modules', `${resourceName}`, 'plugin', 'partials')
+  const templatesDir = path.join(basePath, 'node_modules', `${resourceName}`, 'plugin', 'templates')
 
-const templatesDir = './node_modules/signalk-euris-resources/plugin/templates/'
+// Register partials
+  handlebars.registerPartial('footer', fs.readFileSync(path.join(partialsDir, 'footer.hbsp'), 'utf-8'))
+  handlebars.registerPartial('disclaimer', fs.readFileSync(path.join(partialsDir, 'disclaimer.hbsp'), 'utf-8'))
+  handlebars.registerPartial('operatingTime', fs.readFileSync(path.join(partialsDir, 'operating_time.hbsp'), 'utf-8'))
+  handlebars.registerPartial('noticeToSkippers', fs.readFileSync(path.join(partialsDir, 'notice_to_skippers.hbsp'), 'utf-8'))
 
-const risTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ris.hbs`, 'utf-8'))
-const bridgeTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/bridge.hbs`, 'utf-8'))
-const lockTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/lock.hbs`, 'utf-8'))
-const guageTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/guage.hbs`, 'utf-8'))
-const berthWithoutTranshipmentTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/berthWithoutTranshipment.hbs`, 'utf-8'))
-const ferryBerthTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/ferryBerth.hbs`, 'utf-8'))
-const radionCallPointTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/radioCallPoint.hbs`, 'utf-8'))
-const noticeToSkippersTemplate = handlebars.compile(fs.readFileSync(`${templatesDir}/noticeToSkippers.hbs`, 'utf-8'))
+  // Compile templates
+  compiledTemplates = {
+    ris: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'ris.hbs'), 'utf-8')),
+    bridge: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'bridge.hbs'), 'utf-8')),
+    lock: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'lock.hbs'), 'utf-8')),
+    guage: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'guage.hbs'), 'utf-8')),
+    berthWithoutTranshipment: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'berthWithoutTranshipment.hbs'), 'utf-8')),
+    ferryBerth: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'ferryBerth.hbs'), 'utf-8')),
+    radioCallPoint: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'radioCallPoint.hbs'), 'utf-8')),
+    noticeToSkippers: handlebars.compile(fs.readFileSync(path.join(templatesDir, 'noticeToSkippers.hbs'), 'utf-8'))
+  }
+}
 
 module.exports = {
-  helpers: function () {
+  helpers: function (app) {
+    // Initialize templates if not already done
+    if (Object.keys(compiledTemplates).length === 0) {
+      const basePath = app.config.configPath.replace(/\/config$/, '')
+      initializeTemplates(basePath, 'signalk-euris-resources')
+    }
+
     helpersForHandlebars.string()
     helpersForHandlebars.number()
     helpersForHandlebars.math()
@@ -174,7 +188,7 @@ module.exports = {
   ris: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.objectName,
-      description: risTemplate({
+      description: compiledTemplates.ris({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -188,7 +202,7 @@ module.exports = {
   guage: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: `${entity[0].parameterName} - ${entity[0].parameterName}`,
-      description: guageTemplate({
+      description: compiledTemplates.guage({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -202,7 +216,7 @@ module.exports = {
   bridge: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.bridgeAreaHeight.name,
-      description: bridgeTemplate({
+      description: compiledTemplates.bridge({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -216,7 +230,7 @@ module.exports = {
   lock: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.compactLock2.objectName,
-      description: lockTemplate({
+      description: compiledTemplates.lock({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -230,7 +244,7 @@ module.exports = {
   berthWithoutTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.compactBerth2.objectname,
-      description: berthWithoutTranshipmentTemplate({
+      description: compiledTemplates.berthWithoutTranshipment({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -244,7 +258,7 @@ module.exports = {
   ferryBerth: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.compactBerth2.objectname,
-      description: ferryBerthTemplate({
+      description: compiledTemplates.ferryBerth({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -258,7 +272,7 @@ module.exports = {
   berthWithTranshipment: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.compactBerth2.objectname,
-      description: noticeToSkippersTemplate({
+      description: compiledTemplates.noticeToSkippers({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -272,7 +286,7 @@ module.exports = {
   radioCallPoint: function (icon, entity, operatingTimes, noticesToSkippers) {
     return {
       name: entity.objectName,
-      description: radionCallPointTemplate({
+      description: compiledTemplates.radioCallPoint({
         entity,
         operatingTimes,
         noticesToSkippers
@@ -286,7 +300,7 @@ module.exports = {
   noticeToSkippers: function (icon, entity, _, __) {
     return {
       name: entity.title,
-      description: noticeToSkippersTemplate({
+      description: compiledTemplates.noticeToSkippers({
         entity,
         _,
         __
